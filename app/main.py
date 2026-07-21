@@ -11,9 +11,14 @@ from app.database import connect_to_mongo, close_mongo_connection
 from app.models import (
     Product, ProductCreate, ProductUpdate,
     UserRegister, UserLogin, UserOut, CartItemInput, CartMergeInput, UserDevLogin,
-    UserOTPSend, UserOTPVerify
+    UserOTPSend, UserOTPVerify, OrderCreateInput, UserProfileUpdate,
+    PaymentOrderCreateInput, PaymentVerifyInput,
+    PaymentLinkCreateInput, PaymentLinkVerifyInput,
+    StoreSettings
 )
 from app import crud
+from app.auth.routes import router as auth_router
+from app.services.razorpay_service import razorpay_service
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -40,6 +45,8 @@ app.add_middleware(
 )
 
 app.mount("/images", StaticFiles(directory=r"C:\Users\Vaibhav\Desktop\MakeWithMojo\MakeWithMojo-frontend\public\images"), name="images")
+
+app.include_router(auth_router)
 
 @app.get("/health")
 async def health_check():
@@ -172,6 +179,11 @@ async def login(credentials: UserLogin):
 async def get_me(current_user: dict = Depends(get_current_user)):
     return current_user
 
+@app.put("/api/auth/me")
+async def update_me(payload: UserProfileUpdate, current_user: dict = Depends(get_current_user)):
+    updated_user = await crud.update_user_profile(current_user["_id"], payload.name, payload.email)
+    return updated_user
+
 @app.post("/api/auth/dev-login")
 async def dev_login(credentials: UserDevLogin):
     user = await crud.dev_login_or_register(credentials.phone)
@@ -271,3 +283,94 @@ async def delete_wishlist_item(product_id: str, current_user: dict = Depends(get
 @app.get("/api/checkout/validate")
 async def validate_checkout(current_user: dict = Depends(get_current_user)):
     return {"authenticated": True, "user_id": current_user["_id"]}
+
+# --- Razorpay Payment Routes ---
+@app.get("/api/payment/config")
+async def get_payment_config():
+    return {
+        "key_id": razorpay_service.key_id or "rzp_test_MWM12345",
+        "is_configured": razorpay_service.is_configured()
+    }
+
+@app.post("/api/payment/create-order")
+async def create_razorpay_order(payload: PaymentOrderCreateInput, current_user: dict = Depends(get_current_user)):
+    receipt_id = payload.receipt or f"rcpt_{int(datetime.utcnow().timestamp())}"
+    res = await razorpay_service.create_razorpay_order(payload.amount, receipt_id)
+    if not res.get("success"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=res.get("error", "Failed to create Razorpay payment order")
+        )
+    return res
+
+@app.post("/api/payment/verify")
+async def verify_razorpay_payment(payload: PaymentVerifyInput, current_user: dict = Depends(get_current_user)):
+    valid = razorpay_service.verify_payment_signature(
+        payload.razorpay_order_id,
+        payload.razorpay_payment_id,
+        payload.razorpay_signature
+    )
+    if not valid:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid Razorpay payment signature verification failed"
+        )
+    return {"success": True, "message": "Razorpay payment verified successfully"}
+
+@app.post("/api/payment/create-link")
+async def create_payment_link_endpoint(payload: PaymentLinkCreateInput, current_user: dict = Depends(get_current_user)):
+    res = await razorpay_service.create_payment_link(
+        payload.amount,
+        payload.receipt,
+        payload.name,
+        payload.email,
+        payload.phone,
+        payload.callback_url
+    )
+    if not res.get("success"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=res.get("error", "Failed to create Razorpay hosted payment link")
+        )
+    return res
+
+@app.post("/api/payment/verify-link")
+async def verify_payment_link_endpoint(payload: PaymentLinkVerifyInput, current_user: dict = Depends(get_current_user)):
+    valid = razorpay_service.verify_payment_link_signature(
+        payload.razorpay_payment_link_id,
+        payload.razorpay_payment_link_reference_id,
+        payload.razorpay_payment_link_status,
+        payload.razorpay_payment_id,
+        payload.razorpay_signature
+    )
+    if not valid:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid Razorpay payment link signature verification failed"
+        )
+    return {"success": True, "message": "Razorpay payment link signature verified successfully"}
+
+# --- Order Routes ---
+@app.post("/api/orders")
+async def create_new_order(payload: OrderCreateInput, current_user: dict = Depends(get_current_user)):
+    order = await crud.create_order(current_user["_id"], payload)
+    return order
+
+@app.get("/api/orders")
+async def get_my_orders(current_user: dict = Depends(get_current_user)):
+    orders = await crud.get_user_orders(current_user["_id"])
+    return orders
+
+
+@app.get("/api/settings")
+async def get_settings():
+    settings = await crud.get_store_settings()
+    return settings
+
+
+@app.put("/api/settings")
+async def update_settings(settings_data: StoreSettings):
+    settings = await crud.update_store_settings(settings_data)
+    return settings
+
+

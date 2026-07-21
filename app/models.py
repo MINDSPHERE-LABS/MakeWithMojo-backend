@@ -99,6 +99,10 @@ class UserOut(BaseModel):
     name: Optional[str] = None
     email: Optional[str] = None
 
+class UserProfileUpdate(BaseModel):
+    name: Optional[str] = None
+    email: Optional[str] = None
+
 class CartItemInput(BaseModel):
     product_id: str
     quantity: int
@@ -113,3 +117,53 @@ class UserOTPSend(BaseModel):
 class UserOTPVerify(BaseModel):
     phone: str
     otp: str
+
+class OrderItemInput(BaseModel):
+    product_id: Optional[str] = None
+    title: str
+    price: float
+    thumbnail: Optional[str] = None
+
+class OrderCreateInput(BaseModel):
+    order_id: str
+    name: str
+    email: Optional[str] = None
+    phone: str
+    address: str
+    payment_method: str = "upi"
+    items: List[OrderItemInput]
+    grand_total: float
+    status: str = "Processing"
+
+class PaymentOrderCreateInput(BaseModel):
+    amount: float
+    receipt: Optional[str] = None
+
+class PaymentVerifyInput(BaseModel):
+    razorpay_order_id: str
+    razorpay_payment_id: str
+    razorpay_signature: str
+
+class PaymentLinkCreateInput(BaseModel):
+    amount: float
+    receipt: str
+    name: str
+    email: str
+    phone: str
+    callback_url: str
+
+class PaymentLinkVerifyInput(BaseModel):
+    razorpay_payment_id: str
+    razorpay_payment_link_id: str
+    razorpay_payment_link_reference_id: str
+    razorpay_payment_link_status: str
+    razorpay_signature: str
+
+
+class StoreSettings(BaseModel):
+    delivery_charge_threshold: int
+    delivery_charge: int
+    cod_enabled: bool
+
+
+

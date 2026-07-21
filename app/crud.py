@@ -1,7 +1,7 @@
 from bson import ObjectId
 from datetime import datetime
 from typing import List, Optional, Dict, Any
-from app.models import ProductCreate, ProductUpdate
+from app.models import ProductCreate, ProductUpdate, StoreSettings
 from app.database import get_database
 
 def helper_product(product) -> dict:
@@ -143,6 +143,29 @@ async def dev_login_or_register(phone: str, name: Optional[str] = None) -> dict:
         user["name"] = name
     return user
 
+async def update_user_profile(user_id: str, name: Optional[str] = None, email: Optional[str] = None) -> Optional[dict]:
+    db = get_database()
+    if not ObjectId.is_valid(user_id):
+        return None
+    
+    update_data = {}
+    if name is not None:
+        update_data["name"] = name
+    if email is not None:
+        update_data["email"] = email
+
+    if update_data:
+        update_data["updated_at"] = datetime.utcnow()
+        await db.users.update_one(
+            {"_id": ObjectId(user_id)},
+            {"$set": update_data}
+        )
+
+    user = await db.users.find_one({"_id": ObjectId(user_id)})
+    if user:
+        user["_id"] = str(user["_id"])
+    return user
+
 async def register_user(user_data: UserRegister) -> Optional[dict]:
     db = get_database()
     existing = await get_user_by_email(user_data.email)
@@ -247,3 +270,60 @@ async def remove_from_wishlist(user_id: str, product_id: str) -> List[str]:
         upsert=True
     )
     return await get_wishlist(user_id)
+
+from app.models import OrderCreateInput
+
+def helper_order(order) -> dict:
+    if not order:
+        return {}
+    order["_id"] = str(order["_id"])
+    return order
+
+async def create_order(user_id: str, order_data: OrderCreateInput) -> dict:
+    db = get_database()
+    order_dict = order_data.model_dump()
+    order_dict["user_id"] = user_id
+    order_dict["created_at"] = datetime.utcnow()
+    result = await db.orders.insert_one(order_dict)
+    new_order = await db.orders.find_one({"_id": result.inserted_id})
+    return helper_order(new_order)
+
+async def get_user_orders(user_id: str) -> List[dict]:
+    db = get_database()
+    cursor = db.orders.find({"user_id": user_id}).sort("created_at", -1)
+    orders = []
+    async for order in cursor:
+        orders.append(helper_order(order))
+    return orders
+
+
+async def get_store_settings() -> dict:
+    db = get_database()
+    settings_doc = await db.settings.find_one({})
+    if not settings_doc:
+        default_settings = {
+            "delivery_charge_threshold": 999,
+            "delivery_charge": 99,
+            "cod_enabled": False,
+            "created_at": datetime.utcnow(),
+            "updated_at": datetime.utcnow()
+        }
+        result = await db.settings.insert_one(default_settings)
+        default_settings["_id"] = str(result.inserted_id)
+        return default_settings
+    
+    settings_doc["_id"] = str(settings_doc["_id"])
+    return settings_doc
+
+
+async def update_store_settings(settings_data: StoreSettings) -> dict:
+    db = get_database()
+    update_dict = settings_data.model_dump()
+    update_dict["updated_at"] = datetime.utcnow()
+    await db.settings.update_one(
+        {},
+        {"$set": update_dict},
+        upsert=True
+    )
+    return await get_store_settings()
+
