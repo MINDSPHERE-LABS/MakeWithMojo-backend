@@ -44,7 +44,21 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.mount("/images", StaticFiles(directory=r"C:\Users\Vaibhav\Desktop\MakeWithMojo\MakeWithMojo-frontend\public\images"), name="images")
+# Environment-agnostic images directory routing
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+LOCAL_IMAGES_DIR = r"C:\Users\Vaibhav\Desktop\MakeWithMojo\MakeWithMojo-frontend\public\images"
+
+if os.path.exists(LOCAL_IMAGES_DIR):
+    IMAGES_DIR = LOCAL_IMAGES_DIR
+    UPLOAD_DIR = os.path.join(LOCAL_IMAGES_DIR, "products")
+else:
+    IMAGES_DIR = os.path.join(BASE_DIR, "public", "images")
+    UPLOAD_DIR = os.path.join(IMAGES_DIR, "products")
+
+# Ensure the upload directories are created on launch
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+app.mount("/images", StaticFiles(directory=IMAGES_DIR), name="images")
 
 app.include_router(auth_router)
 
@@ -54,8 +68,6 @@ async def health_check():
 
 @app.post("/api/upload")
 async def upload_image(file: UploadFile = File(...)):
-    UPLOAD_DIR = r"C:\Users\Vaibhav\Desktop\MakeWithMojo\MakeWithMojo-frontend\public\images\products"
-    os.makedirs(UPLOAD_DIR, exist_ok=True)
     file_path = os.path.join(UPLOAD_DIR, file.filename)
     with open(file_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
