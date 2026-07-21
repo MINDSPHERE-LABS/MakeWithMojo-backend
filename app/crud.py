@@ -296,6 +296,14 @@ async def get_user_orders(user_id: str) -> List[dict]:
         orders.append(helper_order(order))
     return orders
 
+async def get_all_orders() -> List[dict]:
+    db = get_database()
+    cursor = db.orders.find({}).sort("created_at", -1)
+    orders = []
+    async for order in cursor:
+        orders.append(helper_order(order))
+    return orders
+
 
 async def get_store_settings() -> dict:
     db = get_database()

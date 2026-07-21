@@ -361,6 +361,11 @@ async def get_my_orders(current_user: dict = Depends(get_current_user)):
     orders = await crud.get_user_orders(current_user["_id"])
     return orders
 
+@app.get("/api/admin/orders")
+async def get_admin_orders():
+    orders = await crud.get_all_orders()
+    return orders
+
 
 @app.get("/api/settings")
 async def get_settings():
