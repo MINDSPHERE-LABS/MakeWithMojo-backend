@@ -170,6 +170,10 @@ class OrderStatusUpdateInput(BaseModel):
     status: str
     notify_whatsapp: bool = False
 
+class AdminLoginInput(BaseModel):
+    login_id: str
+    password: str
+
 class StoreSettings(BaseModel):
     delivery_charge_threshold: int
     delivery_charge: int

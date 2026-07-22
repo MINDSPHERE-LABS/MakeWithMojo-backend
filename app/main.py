@@ -14,7 +14,7 @@ from app.models import (
     UserOTPSend, UserOTPVerify, OrderCreateInput, UserProfileUpdate,
     PaymentOrderCreateInput, PaymentVerifyInput,
     PaymentLinkCreateInput, PaymentLinkVerifyInput,
-    OrderStatusUpdateInput,
+    OrderStatusUpdateInput, AdminLoginInput,
     StoreSettings
 )
 from app import crud
@@ -23,8 +23,9 @@ from app.services.razorpay_service import razorpay_service
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: Connect to MongoDB
+    # Startup: Connect to MongoDB and seed initial admin user
     await connect_to_mongo()
+    await crud.seed_initial_admin_user()
     yield
     # Shutdown: Close Connection
     await close_mongo_connection()
@@ -540,6 +541,39 @@ async def create_new_order(payload: OrderCreateInput, current_user: dict = Depen
 async def get_my_orders(current_user: dict = Depends(get_current_user)):
     orders = await crud.get_user_orders(current_user["_id"])
     return orders
+
+# --- Admin Authentication Routes ---
+@app.post("/api/admin/login")
+async def admin_login_endpoint(payload: AdminLoginInput):
+    user = await crud.authenticate_admin_user(payload.login_id, payload.password)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid admin credentials or unauthorized account."
+        )
+    token = await crud.create_session(user["_id"])
+    return {
+        "success": True,
+        "token": token,
+        "user": {
+            "id": user["_id"],
+            "name": user.get("name", "Admin"),
+            "email": user.get("email"),
+            "role": user.get("role", "admin")
+        }
+    }
+
+@app.get("/api/admin/me")
+async def get_admin_me(current_admin: dict = Depends(get_current_admin_user)):
+    return {
+        "authenticated": True,
+        "admin": {
+            "id": current_admin.get("_id"),
+            "name": current_admin.get("name", "Admin"),
+            "email": current_admin.get("email"),
+            "role": current_admin.get("role", "admin")
+        }
+    }
 
 @app.get("/api/admin/orders")
 async def get_admin_orders(current_admin: dict = Depends(get_current_admin_user)):

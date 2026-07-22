@@ -178,6 +178,37 @@ async def register_user(user_data: UserRegister) -> Optional[dict]:
     new_user["_id"] = str(new_user["_id"])
     return new_user
 
+async def seed_initial_admin_user():
+    """Ensure at least one admin user exists in MongoDB database."""
+    db = get_database()
+    admin_user = await db.users.find_one({"role": "admin"})
+    if not admin_user:
+        admin_doc = {
+            "email": "admin@makewithmojo.com",
+            "phone": "919999999999",
+            "name": "MakeWithMojo Admin",
+            "password": "AdminPassword123!",
+            "role": "admin",
+            "created_at": datetime.utcnow()
+        }
+        await db.users.insert_one(admin_doc)
+        print("[DATABASE SEED] Initial admin user created: admin@makewithmojo.com (Password: AdminPassword123!)")
+
+async def authenticate_admin_user(login_id: str, password: str) -> Optional[dict]:
+    """Authenticates admin user by email or phone and password."""
+    db = get_database()
+    user = await db.users.find_one({
+        "$or": [
+            {"email": {"$regex": f"^{login_id.strip()}$", "$options": "i"}},
+            {"phone": login_id.strip()}
+        ],
+        "password": password,
+        "role": "admin"
+    })
+    if user:
+        user["_id"] = str(user["_id"])
+    return user
+
 async def authenticate_user(email: str, password: str) -> Optional[dict]:
     db = get_database()
     user = await db.users.find_one({"email": email, "password": password})
