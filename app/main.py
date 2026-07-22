@@ -47,6 +47,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+from fastapi.responses import FileResponse, Response
+
 # Environment-agnostic images directory routing
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 LOCAL_IMAGES_DIR = r"C:\Users\Vaibhav\Desktop\MakeWithMojo\MakeWithMojo-frontend\public\images"
@@ -60,6 +62,27 @@ else:
 
 # Ensure the upload directories are created on launch
 os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+@app.get("/images/products/{filename:path}")
+async def get_product_image_with_fallback(filename: str):
+    file_path = os.path.join(UPLOAD_DIR, filename)
+    if os.path.exists(file_path) and os.path.isfile(file_path):
+        return FileResponse(file_path)
+
+    # Fallback to RABBIT.jpeg or available product image if file is missing
+    fallback_rabbit = os.path.join(UPLOAD_DIR, "RABBIT.jpeg")
+    if os.path.exists(fallback_rabbit):
+        return FileResponse(fallback_rabbit)
+
+    try:
+        existing_files = [f for f in os.listdir(UPLOAD_DIR) if f.lower().endswith(('.jpg', '.jpeg', '.png', '.webp'))]
+        if existing_files:
+            return FileResponse(os.path.join(UPLOAD_DIR, existing_files[0]))
+    except Exception:
+        pass
+
+    svg_fallback = """<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400" viewBox="0 0 400 400"><rect width="400" height="400" fill="#f3f4f6"/><path d="M150 250 L200 180 L250 250 Z" fill="#d1d5db"/><circle cx="160" cy="160" r="20" fill="#d1d5db"/><text x="200" y="300" font-size="16" font-weight="bold" font-family="sans-serif" fill="#9ca3af" text-anchor="middle">3D Creation Model</text></svg>"""
+    return Response(content=svg_fallback, media_type="image/svg+xml")
 
 app.mount("/images", StaticFiles(directory=IMAGES_DIR), name="images")
 
