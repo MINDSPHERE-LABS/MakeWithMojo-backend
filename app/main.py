@@ -38,14 +38,51 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# CORS configurations
+# --- CORS & Security Configurations ---
+ALLOWED_ORIGINS_ENV = os.getenv("ALLOWED_ORIGINS", "")
+ALLOWED_ORIGINS = [origin.strip() for origin in ALLOWED_ORIGINS_ENV.split(",") if origin.strip()]
+
+if not ALLOWED_ORIGINS:
+    ALLOWED_ORIGINS = [
+        "https://makewithmojo.com",
+        "https://www.makewithmojo.com",
+        "https://makewithmojo-frontend.onrender.com",
+        "https://makewithmojo-backend.onrender.com",
+        "https://makewithmojo-admin.onrender.com",
+        "http://localhost:5173",
+        "http://localhost:3000",
+        "http://127.0.0.1:5173",
+    ]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Adjust in production
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD"],
+    allow_headers=["Content-Type", "Authorization", "X-Admin-Key", "X-Requested-With"],
 )
+
+# --- HTTP Security Headers Middleware ---
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    response = await call_next(request)
+    
+    # 1. Prevent Clickjacking Attacks
+    response.headers["X-Frame-Options"] = "DENY"
+    
+    # 2. Prevent MIME Sniffing Attacks
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    
+    # 3. Enable Browser XSS Protection Filter
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    
+    # 4. Strict Transport Security (HSTS - Enforce HTTPS)
+    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains; preload"
+    
+    # 5. Referrer Policy Privacy Control
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+
+    return response
 
 from fastapi.responses import FileResponse, Response
 
