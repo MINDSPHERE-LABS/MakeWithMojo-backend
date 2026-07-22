@@ -422,6 +422,17 @@ async def create_payment_link_endpoint(payload: PaymentLinkCreateInput, current_
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=res.get("error", "Failed to create Razorpay hosted payment link")
         )
+
+    # Save payment short_url on order document so user can resume payment anytime from Order History
+    try:
+        await crud.update_order_payment_link_info(
+            order_id=payload.receipt,
+            short_url=res.get("short_url"),
+            razorpay_order_id=res.get("plink_id")
+        )
+    except Exception as e:
+        print(f"[PAYMENT LINK] Warning saving short_url on order: {e}")
+
     return res
 
 @app.post("/api/payment/verify-link")

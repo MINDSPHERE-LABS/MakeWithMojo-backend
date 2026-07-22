@@ -450,3 +450,20 @@ async def update_store_settings(settings_data: StoreSettings) -> dict:
     )
     return await get_store_settings()
 
+async def update_order_payment_link_info(order_id: str, short_url: str, razorpay_order_id: Optional[str] = None) -> Optional[dict]:
+    db = get_database()
+    update_fields = {"short_url": short_url, "payment_url": short_url, "updated_at": datetime.utcnow()}
+    if razorpay_order_id:
+        update_fields["razorpay_order_id"] = razorpay_order_id
+
+    query = {"$or": [{"order_id": order_id}]}
+    if ObjectId.is_valid(order_id):
+        query["$or"].append({"_id": ObjectId(order_id)})
+
+    res = await db.orders.find_one_and_update(
+        query,
+        {"$set": update_fields},
+        return_document=True
+    )
+    return helper_order(res) if res else None
+
