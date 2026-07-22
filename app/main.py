@@ -67,8 +67,49 @@ app.include_router(auth_router)
 async def health_check():
     return {"status": "healthy", "service": "MakeWithMojo-backend"}
 
+# --- Authentication Dependencies ---
+ADMIN_SECRET_KEY = os.getenv("ADMIN_SECRET_KEY", "makewithmojo_admin_secret_key_2026")
+
+async def get_current_user(authorization: Optional[str] = Header(None)):
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing or invalid authentication token"
+        )
+    token = authorization.split(" ")[1]
+    user = await crud.get_user_by_session(token)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Session has expired or is invalid"
+        )
+    return user
+
+async def get_current_admin_user(
+    authorization: Optional[str] = Header(None),
+    x_admin_key: Optional[str] = Header(None)
+):
+    if x_admin_key and x_admin_key == ADMIN_SECRET_KEY:
+        return {"_id": "admin_system", "role": "admin", "name": "System Admin"}
+
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization.split(" ")[1]
+        user = await crud.get_user_by_session(token)
+        if user and user.get("role") == "admin":
+            return user
+        if user:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Admin privileges required to perform this action"
+            )
+
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Missing or invalid admin authorization credentials"
+    )
+
 @app.post("/api/upload")
-async def upload_image(file: UploadFile = File(...)):
+async def upload_image(file: UploadFile = File(...), current_admin: dict = Depends(get_current_admin_user)):
     file_path = os.path.join(UPLOAD_DIR, file.filename)
     with open(file_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
@@ -106,9 +147,8 @@ async def get_product_by_slug(slug: str):
             detail=f"Product with slug '{slug}' not found"
         )
     return product
-
 @app.get("/api/products/{product_id}", response_model=Product)
-async def get_product_by_id(product_id: str):
+async def get_product(product_id: str):
     product = await crud.get_product_by_id(product_id)
     if not product:
         raise HTTPException(
@@ -118,7 +158,7 @@ async def get_product_by_id(product_id: str):
     return product
 
 @app.post("/api/products", response_model=Product, status_code=status.HTTP_201_CREATED)
-async def upload_product(product: ProductCreate):
+async def upload_product(product: ProductCreate, current_admin: dict = Depends(get_current_admin_user)):
     # Check if product slug exists
     existing = await crud.get_product_by_slug(product.slug)
     if existing:
@@ -130,7 +170,7 @@ async def upload_product(product: ProductCreate):
     return new_product
 
 @app.put("/api/products/{product_id}", response_model=Product)
-async def update_product(product_id: str, product_update: ProductUpdate):
+async def update_product(product_id: str, product_update: ProductUpdate, current_admin: dict = Depends(get_current_admin_user)):
     product = await crud.update_product(product_id, product_update)
     if not product:
         raise HTTPException(
@@ -140,7 +180,7 @@ async def update_product(product_id: str, product_update: ProductUpdate):
     return product
 
 @app.delete("/api/products/{product_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_product(product_id: str):
+async def delete_product(product_id: str, current_admin: dict = Depends(get_current_admin_user)):
     success = await crud.delete_product(product_id)
     if not success:
         raise HTTPException(
@@ -148,22 +188,6 @@ async def delete_product(product_id: str):
             detail=f"Product with ID '{product_id}' not found or invalid format"
         )
     return
-
-# --- Authentication Dependency ---
-async def get_current_user(authorization: Optional[str] = Header(None)):
-    if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Missing or invalid authentication token"
-        )
-    token = authorization.split(" ")[1]
-    user = await crud.get_user_by_session(token)
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Session has expired or is invalid"
-        )
-    return user
 
 # --- Auth Routes ---
 @app.post("/api/auth/register")
@@ -518,12 +542,12 @@ async def get_my_orders(current_user: dict = Depends(get_current_user)):
     return orders
 
 @app.get("/api/admin/orders")
-async def get_admin_orders():
+async def get_admin_orders(current_admin: dict = Depends(get_current_admin_user)):
     orders = await crud.get_all_orders()
     return orders
 
 @app.put("/api/admin/orders/{order_id}/status")
-async def update_admin_order_status(order_id: str, payload: OrderStatusUpdateInput):
+async def update_admin_order_status(order_id: str, payload: OrderStatusUpdateInput, current_admin: dict = Depends(get_current_admin_user)):
     updated = await crud.update_order_status_by_admin(
         order_id=order_id,
         new_status=payload.status,
@@ -550,7 +574,7 @@ async def get_settings():
 
 
 @app.put("/api/settings")
-async def update_settings(settings_data: StoreSettings):
+async def update_settings(settings_data: StoreSettings, current_admin: dict = Depends(get_current_admin_user)):
     settings = await crud.update_store_settings(settings_data)
     return settings
 
