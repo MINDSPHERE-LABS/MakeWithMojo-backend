@@ -64,7 +64,7 @@ app.mount("/images", StaticFiles(directory=IMAGES_DIR), name="images")
 
 app.include_router(auth_router)
 
-@app.get("/health")
+@app.api_route("/health", methods=["GET", "HEAD", "POST", "OPTIONS"])
 async def health_check():
     return {"status": "healthy", "service": "MakeWithMojo-backend"}
 
