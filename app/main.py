@@ -14,6 +14,7 @@ from app.models import (
     UserOTPSend, UserOTPVerify, OrderCreateInput, UserProfileUpdate,
     PaymentOrderCreateInput, PaymentVerifyInput,
     PaymentLinkCreateInput, PaymentLinkVerifyInput,
+    OrderStatusUpdateInput,
     StoreSettings
 )
 from app import crud
@@ -520,6 +521,26 @@ async def get_my_orders(current_user: dict = Depends(get_current_user)):
 async def get_admin_orders():
     orders = await crud.get_all_orders()
     return orders
+
+@app.put("/api/admin/orders/{order_id}/status")
+async def update_admin_order_status(order_id: str, payload: OrderStatusUpdateInput):
+    updated = await crud.update_order_status_by_admin(
+        order_id=order_id,
+        new_status=payload.status,
+        notify_whatsapp=payload.notify_whatsapp
+    )
+    if not updated:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Order with ID '{order_id}' not found"
+        )
+
+    if payload.notify_whatsapp:
+        print(f"\n==================================================")
+        print(f"[WHATSAPP NOTIFICATION HOOK] (Disabled) Would send WhatsApp status alert for order {order_id} -> '{payload.status}'")
+        print(f"==================================================\n")
+
+    return {"success": True, "order": updated}
 
 
 @app.get("/api/settings")

@@ -364,9 +364,30 @@ async def update_order_payment_status(
         {"_id": ObjectId(order["_id"])},
         {"$set": update_fields}
     )
-    return await db.orders.find_one({"_id": ObjectId(order["_id"])})
+    updated = await db.orders.find_one({"_id": ObjectId(order["_id"])})
+    return helper_order(updated) if updated else None
 
+async def update_order_status_by_admin(order_id: str, new_status: str, notify_whatsapp: bool = False) -> Optional[dict]:
+    db = get_database()
+    order = await get_order_by_identifier(order_id)
+    if not order:
+        return None
 
+    update_fields = {
+        "status": new_status,
+        "updated_at": datetime.utcnow()
+    }
+
+    if new_status in ("Paid", "Processing", "Dispatched", "Shipped", "Delivered", "Confirmed"):
+        if order.get("payment_status") != "paid":
+            update_fields["payment_status"] = "paid"
+
+    await db.orders.update_one(
+        {"_id": ObjectId(order["_id"])},
+        {"$set": update_fields}
+    )
+    updated = await db.orders.find_one({"_id": ObjectId(order["_id"])})
+    return helper_order(updated) if updated else None
 
 async def get_store_settings() -> dict:
     db = get_database()
