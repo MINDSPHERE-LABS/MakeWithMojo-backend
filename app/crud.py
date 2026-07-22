@@ -527,7 +527,13 @@ async def get_admin_analytics() -> dict:
     async for order in orders_cursor:
         status = (order.get("status") or "").lower()
         pay_status = (order.get("payment_status") or "").lower()
-        if "cancel" in status or "failed" in pay_status:
+        
+        # Revenue ONLY counts completed / captured payments (Excludes Pending Payment, Failed & Cancelled)
+        is_paid = (
+            pay_status == "paid" or 
+            (status in ("paid", "processing", "dispatched", "shipped", "delivered", "confirmed") and pay_status != "pending" and pay_status != "failed")
+        )
+        if not is_paid:
             continue
 
         amount = float(order.get("grand_total") or 0.0)
@@ -538,6 +544,9 @@ async def get_admin_analytics() -> dict:
                 created_at = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
             except Exception:
                 created_at = now
+        
+        if hasattr(created_at, 'tzinfo') and created_at.tzinfo is not None:
+            created_at = created_at.replace(tzinfo=None)
 
         if created_at >= current_month_start:
             monthly_revenue += amount
