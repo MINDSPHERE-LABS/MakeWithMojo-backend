@@ -232,8 +232,8 @@ async def login(credentials: UserLogin, request: Request):
     rate_limiter.check_rate_limit(
         identifier=f"user_login:{client_ip}",
         max_requests=5,
-        window_seconds=60,
-        custom_message="Too many login attempts. Please wait 60 seconds."
+        window_seconds=120,
+        custom_message="Too many login attempts. Please wait 2 minutes (120 seconds)."
     )
     user = await crud.authenticate_user(credentials.email, credentials.password)
     if not user:
@@ -267,12 +267,20 @@ from datetime import datetime, timedelta
 otp_store = {}
 
 @app.post("/api/auth/otp/send")
-async def send_otp(payload: UserOTPSend):
+async def send_otp(payload: UserOTPSend, request: Request):
+    client_ip = get_client_ip(request)
+    rate_limiter.check_rate_limit(
+        identifier=f"otp_send:{client_ip}:{payload.phone}",
+        max_requests=3,
+        window_seconds=120,
+        custom_message="Too many OTP requests for this number. Please wait 2 minutes (120 seconds)."
+    )
+
     otp = str(random.randint(100000, 999999))
     otp_store[payload.phone] = {
         "otp": otp,
         "name": payload.name,
-        "expires_at": datetime.utcnow() + timedelta(minutes=5)
+        "expires_at": datetime.utcnow() + timedelta(minutes=2)
     }
     
     # Dev mode OTP console printout
@@ -284,7 +292,15 @@ async def send_otp(payload: UserOTPSend):
     return {"message": "OTP sent successfully", "phone": payload.phone, "otp": otp}
 
 @app.post("/api/auth/otp/verify")
-async def verify_otp(payload: UserOTPVerify):
+async def verify_otp(payload: UserOTPVerify, request: Request):
+    client_ip = get_client_ip(request)
+    rate_limiter.check_rate_limit(
+        identifier=f"otp_verify:{client_ip}:{payload.phone}",
+        max_requests=5,
+        window_seconds=120,
+        custom_message="Too many OTP verification attempts. Please wait 2 minutes (120 seconds)."
+    )
+
     entry = otp_store.get(payload.phone)
     if not entry:
         raise HTTPException(
@@ -591,8 +607,8 @@ async def admin_login_endpoint(payload: AdminLoginInput, request: Request):
     rate_limiter.check_rate_limit(
         identifier=f"admin_login:{client_ip}",
         max_requests=5,
-        window_seconds=60,
-        custom_message="Too many admin login attempts. Please wait 60 seconds."
+        window_seconds=120,
+        custom_message="Too many admin login attempts. Please wait 2 minutes (120 seconds)."
     )
     user = await crud.authenticate_admin_user(payload.login_id, payload.password)
     if not user:

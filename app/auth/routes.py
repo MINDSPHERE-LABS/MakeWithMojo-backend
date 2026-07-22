@@ -34,12 +34,12 @@ async def send_otp(payload: SendOTPRequest, request: Request):
     clean_phone = normalize_phone(payload.phone)
     client_ip = get_client_ip(request)
 
-    # Rate limiting: Max 3 OTP requests per 60s
+    # Rate limiting: Max 3 OTP requests per 2 minutes (120s)
     rate_limiter.check_rate_limit(
         identifier=f"send_otp:{client_ip}:{clean_phone}",
         max_requests=3,
-        window_seconds=60,
-        custom_message="Too many OTP requests for this number. Please wait 60 seconds."
+        window_seconds=120,
+        custom_message="Too many OTP requests for this number. Please wait 2 minutes (120 seconds) before requesting another OTP."
     )
 
     raw_otp, otp_doc = await create_and_store_otp(clean_phone)
@@ -59,8 +59,8 @@ async def send_otp(payload: SendOTPRequest, request: Request):
 @router.post("/api/auth/verify-otp")
 async def verify_otp(payload: VerifyOTPRequest, request: Request):
     """
-    1. Enforces 5 attempts/minute rate limit.
-    2. Verifies 6-digit OTP against stored hash.
+    1. Enforces 5 attempts per 2 minutes rate limit.
+    2. Verifies 6-digit OTP against stored hash (2 min expiry).
     3. Auto-creates user if non-existent & returns session token.
     """
     if not payload.phone or not payload.otp:
@@ -72,12 +72,12 @@ async def verify_otp(payload: VerifyOTPRequest, request: Request):
     clean_phone = normalize_phone(payload.phone)
     client_ip = get_client_ip(request)
 
-    # Rate limiting: Max 5 attempts per 60s
+    # Rate limiting: Max 5 attempts per 2 minutes (120s)
     rate_limiter.check_rate_limit(
         identifier=f"verify_otp:{client_ip}:{clean_phone}",
         max_requests=5,
-        window_seconds=60,
-        custom_message="Too many OTP verification attempts. Please wait 60 seconds."
+        window_seconds=120,
+        custom_message="Too many OTP verification attempts. Please wait 2 minutes (120 seconds) before trying again."
     )
 
     valid, msg = await verify_otp_code(clean_phone, payload.otp)

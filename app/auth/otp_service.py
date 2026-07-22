@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 from typing import Tuple, Optional
 from app.database import get_database
 
-OTP_EXPIRY_MINUTES = 5
+OTP_EXPIRY_MINUTES = 2
 MAX_ATTEMPTS = 5
 
 def normalize_phone(phone: str) -> str:
