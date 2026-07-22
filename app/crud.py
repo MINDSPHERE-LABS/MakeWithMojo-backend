@@ -304,6 +304,53 @@ async def get_all_orders() -> List[dict]:
         orders.append(helper_order(order))
     return orders
 
+async def get_order_by_identifier(identifier: str) -> Optional[dict]:
+    db = get_database()
+    query = {
+        "$or": [
+            {"order_id": identifier},
+            {"razorpay_order_id": identifier},
+            {"receipt": identifier}
+        ]
+    }
+    if ObjectId.is_valid(identifier):
+        query["$or"].append({"_id": ObjectId(identifier)})
+        
+    order = await db.orders.find_one(query)
+    return helper_order(order) if order else None
+
+async def update_order_payment_status(
+    identifier: str,
+    payment_status: str,
+    order_status: str,
+    razorpay_payment_id: Optional[str] = None,
+    razorpay_order_id: Optional[str] = None,
+    failure_reason: Optional[str] = None
+) -> Optional[dict]:
+    db = get_database()
+    order = await get_order_by_identifier(identifier)
+    if not order:
+        return None
+
+    update_fields = {
+        "payment_status": payment_status,
+        "status": order_status,
+        "updated_at": datetime.utcnow()
+    }
+    if razorpay_payment_id:
+        update_fields["razorpay_payment_id"] = razorpay_payment_id
+    if razorpay_order_id:
+        update_fields["razorpay_order_id"] = razorpay_order_id
+    if failure_reason:
+        update_fields["failure_reason"] = failure_reason
+
+    await db.orders.update_one(
+        {"_id": ObjectId(order["_id"])},
+        {"$set": update_fields}
+    )
+    return await db.orders.find_one({"_id": ObjectId(order["_id"])})
+
+
 
 async def get_store_settings() -> dict:
     db = get_database()

@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, status, Query, File, UploadFile, Depends, Header
+from fastapi import FastAPI, HTTPException, status, Query, File, UploadFile, Depends, Header, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from typing import List, Optional
@@ -361,6 +361,115 @@ async def verify_payment_link_endpoint(payload: PaymentLinkVerifyInput, current_
             detail="Invalid Razorpay payment link signature verification failed"
         )
     return {"success": True, "message": "Razorpay payment link signature verified successfully"}
+
+@app.post("/api/payment/webhook")
+async def razorpay_webhook(request: Request):
+    raw_body = await request.body()
+    signature = request.headers.get("X-Razorpay-Signature", "")
+
+    is_valid = razorpay_service.verify_webhook_signature(raw_body, signature)
+    if not is_valid:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid Razorpay webhook signature"
+        )
+
+    try:
+        event_data = await request.json()
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid JSON payload in webhook request"
+        )
+
+    event_type = event_data.get("event")
+    payload = event_data.get("payload", {})
+
+    print(f"\n==================================================")
+    print(f"[RAZORPAY WEBHOOK] Received event: {event_type}")
+    print(f"==================================================\n")
+
+    if event_type in ("payment.captured", "order.paid"):
+        payment_entity = payload.get("payment", {}).get("entity", {})
+        order_entity = payload.get("order", {}).get("entity", {})
+
+        razorpay_payment_id = payment_entity.get("id")
+        razorpay_order_id = payment_entity.get("order_id") or order_entity.get("id")
+        notes = payment_entity.get("notes", {}) or order_entity.get("notes", {})
+        receipt = payment_entity.get("receipt") or order_entity.get("receipt") or notes.get("order_id") or notes.get("receipt")
+
+        identifier = razorpay_order_id or receipt
+
+        if identifier:
+            updated_order = await crud.update_order_payment_status(
+                identifier=identifier,
+                payment_status="paid",
+                order_status="Processing",
+                razorpay_payment_id=razorpay_payment_id,
+                razorpay_order_id=razorpay_order_id
+            )
+            if updated_order:
+                print(f"[RAZORPAY WEBHOOK] Order successfully marked as PAID for identifier: {identifier}")
+            else:
+                print(f"[RAZORPAY WEBHOOK] Warning: Order not found for identifier: {identifier}")
+        else:
+            print("[RAZORPAY WEBHOOK] Warning: No order identifier found in payload")
+
+    elif event_type == "payment.failed":
+        payment_entity = payload.get("payment", {}).get("entity", {})
+        razorpay_payment_id = payment_entity.get("id")
+        razorpay_order_id = payment_entity.get("order_id")
+        error_description = payment_entity.get("error_description", "Payment transaction failed")
+        error_reason = payment_entity.get("error_reason") or payment_entity.get("error_code")
+        notes = payment_entity.get("notes", {})
+        receipt = payment_entity.get("receipt") or notes.get("order_id") or notes.get("receipt")
+
+        identifier = razorpay_order_id or receipt
+
+        if identifier:
+            updated_order = await crud.update_order_payment_status(
+                identifier=identifier,
+                payment_status="failed",
+                order_status="Payment Failed",
+                razorpay_payment_id=razorpay_payment_id,
+                razorpay_order_id=razorpay_order_id,
+                failure_reason=f"{error_description} ({error_reason})" if error_reason else error_description
+            )
+            if updated_order:
+                print(f"[RAZORPAY WEBHOOK] Order marked as FAILED for identifier: {identifier}")
+            else:
+                print(f"[RAZORPAY WEBHOOK] Warning: Order not found for identifier: {identifier}")
+        else:
+            print("[RAZORPAY WEBHOOK] Warning: No order identifier found in payload")
+
+    elif event_type == "payment_link.paid":
+        link_entity = payload.get("payment_link", {}).get("entity", {})
+        payment_entity = payload.get("payment", {}).get("entity", {})
+        reference_id = link_entity.get("reference_id")
+        razorpay_payment_id = payment_entity.get("id") or link_entity.get("payment_id")
+
+        if reference_id:
+            updated_order = await crud.update_order_payment_status(
+                identifier=reference_id,
+                payment_status="paid",
+                order_status="Processing",
+                razorpay_payment_id=razorpay_payment_id
+            )
+            if updated_order:
+                print(f"[RAZORPAY WEBHOOK] Payment Link Order marked as PAID for ref: {reference_id}")
+
+    elif event_type in ("payment_link.cancelled", "payment_link.expired"):
+        link_entity = payload.get("payment_link", {}).get("entity", {})
+        reference_id = link_entity.get("reference_id")
+        if reference_id:
+            await crud.update_order_payment_status(
+                identifier=reference_id,
+                payment_status="failed",
+                order_status="Payment Cancelled",
+                failure_reason=f"Payment link {event_type.split('.')[1]}"
+            )
+
+    return {"status": "ok", "event": event_type}
 
 # --- Order Routes ---
 @app.post("/api/orders")

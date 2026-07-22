@@ -134,6 +134,10 @@ class OrderCreateInput(BaseModel):
     items: List[OrderItemInput]
     grand_total: float
     status: str = "Processing"
+    payment_status: str = "pending"
+    razorpay_order_id: Optional[str] = None
+    razorpay_payment_id: Optional[str] = None
+    failure_reason: Optional[str] = None
 
 class PaymentOrderCreateInput(BaseModel):
     amount: float
