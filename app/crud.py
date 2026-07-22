@@ -283,6 +283,22 @@ async def create_order(user_id: str, order_data: OrderCreateInput) -> dict:
     db = get_database()
     order_dict = order_data.model_dump()
     order_dict["user_id"] = user_id
+
+    # Check if order with this order_id already exists (pre-created pending order)
+    existing = await db.orders.find_one({"order_id": order_data.order_id})
+    if existing:
+        update_fields = {k: v for k, v in order_dict.items() if k not in ("_id", "created_at")}
+        # Preserve status if it was already updated to Processing or Paid by webhook!
+        if existing.get("status") in ("Processing", "Paid", "Confirmed"):
+            update_fields["status"] = existing.get("status")
+        if existing.get("payment_status") == "paid":
+            update_fields["payment_status"] = "paid"
+            
+        update_fields["updated_at"] = datetime.utcnow()
+        await db.orders.update_one({"_id": existing["_id"]}, {"$set": update_fields})
+        updated = await db.orders.find_one({"_id": existing["_id"]})
+        return helper_order(updated)
+
     order_dict["created_at"] = datetime.utcnow()
     result = await db.orders.insert_one(order_dict)
     new_order = await db.orders.find_one({"_id": result.inserted_id})

@@ -155,6 +155,8 @@ class PaymentLinkCreateInput(BaseModel):
     email: str
     phone: str
     callback_url: str
+    address: Optional[str] = None
+    items: Optional[List[OrderItemInput]] = None
 
 class PaymentLinkVerifyInput(BaseModel):
     razorpay_payment_id: str

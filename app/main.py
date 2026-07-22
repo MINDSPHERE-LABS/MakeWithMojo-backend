@@ -331,6 +331,27 @@ async def verify_razorpay_payment(payload: PaymentVerifyInput, current_user: dic
 
 @app.post("/api/payment/create-link")
 async def create_payment_link_endpoint(payload: PaymentLinkCreateInput, current_user: dict = Depends(get_current_user)):
+    # Pre-create pending order in DB so webhook can find it instantly when payment completes
+    existing_order = await crud.get_order_by_identifier(payload.receipt)
+    if not existing_order:
+        try:
+            pending_data = OrderCreateInput(
+                order_id=payload.receipt,
+                name=payload.name,
+                email=payload.email,
+                phone=payload.phone,
+                address=payload.address or "Pending Delivery Address",
+                payment_method="Razorpay Hosted Redirect",
+                items=payload.items or [],
+                grand_total=payload.amount,
+                status="Pending Payment",
+                payment_status="pending"
+            )
+            await crud.create_order(current_user["_id"], pending_data)
+            print(f"[PAYMENT LINK] Pre-created pending order in DB: {payload.receipt}")
+        except Exception as e:
+            print(f"[PAYMENT LINK] Warning pre-creating order in DB: {e}")
+
     res = await razorpay_service.create_payment_link(
         payload.amount,
         payload.receipt,
