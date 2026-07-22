@@ -39,7 +39,11 @@ class RazorpayService:
             "amount": amount_in_paise,
             "currency": "INR",
             "receipt": receipt_id,
-            "payment_capture": 1
+            "payment_capture": 1,
+            "notes": {
+                "order_id": receipt_id,
+                "receipt": receipt_id
+            }
         }
 
         try:
@@ -127,6 +131,10 @@ class RazorpayService:
                 "email": False
             },
             "reminder_enable": False,
+            "notes": {
+                "order_id": receipt_id,
+                "receipt": receipt_id
+            },
             "callback_url": callback_url,
             "callback_method": "get"
         }
