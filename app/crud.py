@@ -181,7 +181,7 @@ async def register_user(user_data: UserRegister) -> Optional[dict]:
 async def seed_initial_admin_user():
     """Ensure at least one admin user exists in MongoDB database."""
     db = get_database()
-    admin_user = await db.users.find_one({"role": "admin"})
+    admin_user = await db.users.find_one({"email": "admin@makewithmojo.com"})
     if not admin_user:
         admin_doc = {
             "email": "admin@makewithmojo.com",
@@ -466,4 +466,101 @@ async def update_order_payment_link_info(order_id: str, short_url: str, razorpay
         return_document=True
     )
     return helper_order(res) if res else None
+
+
+async def get_admin_users_list() -> List[dict]:
+    """Fetch all registered customers with their order stats."""
+    db = get_database()
+    users_cursor = db.users.find({}).sort("created_at", -1)
+    users_list = []
+
+    async for user_doc in users_cursor:
+        user_id_str = str(user_doc["_id"])
+        user_phone = user_doc.get("phone", "")
+
+        query_conditions = [{"user_id": user_id_str}]
+        if user_phone:
+            query_conditions.append({"phone": user_phone})
+        
+        orders_count = await db.orders.count_documents({"$or": query_conditions})
+
+        users_list.append({
+            "id": user_id_str,
+            "name": user_doc.get("name") or "Customer",
+            "phone": user_doc.get("phone") or "N/A",
+            "email": user_doc.get("email") or "No Gmail linked",
+            "role": user_doc.get("role", "customer"),
+            "created_at": user_doc.get("created_at"),
+            "total_orders": orders_count
+        })
+
+    return users_list
+
+
+async def get_admin_analytics() -> dict:
+    """Computes monthly earnings, financial year earnings, and monthly sales breakdown."""
+    db = get_database()
+    
+    total_users = await db.users.count_documents({})
+    total_orders = await db.orders.count_documents({})
+    
+    now = datetime.utcnow()
+    current_month_start = datetime(now.year, now.month, 1)
+
+    # In India, Financial Year starts April 1st
+    fy_year = now.year if now.month >= 4 else now.year - 1
+    fy_start = datetime(fy_year, 4, 1)
+
+    orders_cursor = db.orders.find({})
+    
+    monthly_revenue = 0.0
+    fy_revenue = 0.0
+
+    monthly_chart_data = {
+        "Jan": 0.0, "Feb": 0.0, "Mar": 0.0, "Apr": 0.0,
+        "May": 0.0, "Jun": 0.0, "Jul": 0.0, "Aug": 0.0,
+        "Sep": 0.0, "Oct": 0.0, "Nov": 0.0, "Dec": 0.0
+    }
+
+    month_names = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+
+    async for order in orders_cursor:
+        status = (order.get("status") or "").lower()
+        pay_status = (order.get("payment_status") or "").lower()
+        if "cancel" in status or "failed" in pay_status:
+            continue
+
+        amount = float(order.get("grand_total") or 0.0)
+        created_at = order.get("created_at") or now
+
+        if isinstance(created_at, str):
+            try:
+                created_at = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
+            except Exception:
+                created_at = now
+
+        if created_at >= current_month_start:
+            monthly_revenue += amount
+
+        if created_at >= fy_start:
+            fy_revenue += amount
+
+        if created_at >= fy_start:
+            m_idx = created_at.month - 1
+            if 0 <= m_idx < 12:
+                monthly_chart_data[month_names[m_idx]] += amount
+
+    chart_list = [
+        {"month": m, "revenue": round(val, 2)}
+        for m, val in monthly_chart_data.items()
+    ]
+
+    return {
+        "total_users": total_users,
+        "total_orders": total_orders,
+        "monthly_revenue": round(monthly_revenue, 2),
+        "fy_revenue": round(fy_revenue, 2),
+        "financial_year_label": f"FY {fy_year}-{fy_year + 1}",
+        "monthly_chart": chart_list
+    }
 

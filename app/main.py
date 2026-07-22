@@ -682,6 +682,16 @@ async def get_admin_orders(current_admin: dict = Depends(get_current_admin_user)
     orders = await crud.get_all_orders()
     return orders
 
+@app.get("/api/admin/users")
+async def get_admin_users(current_admin: dict = Depends(get_current_admin_user)):
+    users = await crud.get_admin_users_list()
+    return users
+
+@app.get("/api/admin/analytics")
+async def get_admin_analytics_endpoint(current_admin: dict = Depends(get_current_admin_user)):
+    analytics = await crud.get_admin_analytics()
+    return analytics
+
 @app.put("/api/admin/orders/{order_id}/status")
 async def update_admin_order_status(order_id: str, payload: OrderStatusUpdateInput, current_admin: dict = Depends(get_current_admin_user)):
     updated = await crud.update_order_status_by_admin(
