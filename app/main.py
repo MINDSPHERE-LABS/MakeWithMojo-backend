@@ -20,6 +20,7 @@ from app.models import (
 from app import crud
 from app.auth.routes import router as auth_router
 from app.services.razorpay_service import razorpay_service
+from app.auth.rate_limiter import rate_limiter, get_client_ip
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -203,7 +204,14 @@ async def register(user_data: UserRegister):
     return {"token": token, "user": user}
 
 @app.post("/api/auth/login")
-async def login(credentials: UserLogin):
+async def login(credentials: UserLogin, request: Request):
+    client_ip = get_client_ip(request)
+    rate_limiter.check_rate_limit(
+        identifier=f"user_login:{client_ip}",
+        max_requests=5,
+        window_seconds=60,
+        custom_message="Too many login attempts. Please wait 60 seconds."
+    )
     user = await crud.authenticate_user(credentials.email, credentials.password)
     if not user:
         raise HTTPException(
@@ -544,7 +552,14 @@ async def get_my_orders(current_user: dict = Depends(get_current_user)):
 
 # --- Admin Authentication Routes ---
 @app.post("/api/admin/login")
-async def admin_login_endpoint(payload: AdminLoginInput):
+async def admin_login_endpoint(payload: AdminLoginInput, request: Request):
+    client_ip = get_client_ip(request)
+    rate_limiter.check_rate_limit(
+        identifier=f"admin_login:{client_ip}",
+        max_requests=5,
+        window_seconds=60,
+        custom_message="Too many admin login attempts. Please wait 60 seconds."
+    )
     user = await crud.authenticate_admin_user(payload.login_id, payload.password)
     if not user:
         raise HTTPException(

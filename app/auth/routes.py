@@ -1,9 +1,10 @@
-from fastapi import APIRouter, HTTPException, status, Header, Depends
+from fastapi import APIRouter, HTTPException, status, Header, Depends, Request
 from typing import Optional
 from app.auth.models import SendOTPRequest, VerifyOTPRequest
 from app.auth.otp_service import create_and_store_otp, verify_otp_code, normalize_phone
 from app.auth.auth_service import get_or_create_user, create_dev_session, get_user_by_session, delete_session
 from app.services.whatsapp_service import whatsapp_service
+from app.auth.rate_limiter import rate_limiter, get_client_ip
 
 router = APIRouter(tags=["Authentication"])
 
@@ -18,11 +19,11 @@ def extract_token(authorization: Optional[str] = Header(None), x_auth_token: Opt
 @router.post("/send-otp")
 @router.post("/auth/send-otp")
 @router.post("/api/auth/send-otp")
-async def send_otp(payload: SendOTPRequest):
+async def send_otp(payload: SendOTPRequest, request: Request):
     """
     1. Validates phone number.
-    2. Generates a 6-digit OTP and hashes it before storage (5 min expiry, 5 max attempts).
-    3. Triggers Meta WhatsApp Cloud API via whatsapp_service.
+    2. Enforces 3 requests/minute rate limit.
+    3. Generates 6-digit OTP and dispatches via Meta WhatsApp API.
     """
     if not payload.phone or len(payload.phone.strip()) < 8:
         raise HTTPException(
@@ -31,6 +32,16 @@ async def send_otp(payload: SendOTPRequest):
         )
 
     clean_phone = normalize_phone(payload.phone)
+    client_ip = get_client_ip(request)
+
+    # Rate limiting: Max 3 OTP requests per 60s
+    rate_limiter.check_rate_limit(
+        identifier=f"send_otp:{client_ip}:{clean_phone}",
+        max_requests=3,
+        window_seconds=60,
+        custom_message="Too many OTP requests for this number. Please wait 60 seconds."
+    )
+
     raw_otp, otp_doc = await create_and_store_otp(clean_phone)
 
     # Deliver OTP via Meta WhatsApp API
@@ -46,11 +57,11 @@ async def send_otp(payload: SendOTPRequest):
 @router.post("/verify-otp")
 @router.post("/auth/verify-otp")
 @router.post("/api/auth/verify-otp")
-async def verify_otp(payload: VerifyOTPRequest):
+async def verify_otp(payload: VerifyOTPRequest, request: Request):
     """
-    1. Verifies 6-digit OTP against SHA-256 stored hash.
-    2. Auto-creates user if not existent.
-    3. Establishes development authentication session.
+    1. Enforces 5 attempts/minute rate limit.
+    2. Verifies 6-digit OTP against stored hash.
+    3. Auto-creates user if non-existent & returns session token.
     """
     if not payload.phone or not payload.otp:
         raise HTTPException(
@@ -58,7 +69,18 @@ async def verify_otp(payload: VerifyOTPRequest):
             detail="Phone number and 6-digit OTP are required."
         )
 
-    valid, msg = await verify_otp_code(payload.phone, payload.otp)
+    clean_phone = normalize_phone(payload.phone)
+    client_ip = get_client_ip(request)
+
+    # Rate limiting: Max 5 attempts per 60s
+    rate_limiter.check_rate_limit(
+        identifier=f"verify_otp:{client_ip}:{clean_phone}",
+        max_requests=5,
+        window_seconds=60,
+        custom_message="Too many OTP verification attempts. Please wait 60 seconds."
+    )
+
+    valid, msg = await verify_otp_code(clean_phone, payload.otp)
     if not valid:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -66,7 +88,7 @@ async def verify_otp(payload: VerifyOTPRequest):
         )
 
     # Auto-create or fetch user
-    user = await get_or_create_user(payload.phone)
+    user = await get_or_create_user(clean_phone)
     
     # Establish dev session
     token = await create_dev_session(user["_id"])
