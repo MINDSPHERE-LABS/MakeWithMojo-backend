@@ -381,6 +381,15 @@ async def verify_payment_link_endpoint(payload: PaymentLinkVerifyInput, current_
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid Razorpay payment link signature verification failed"
         )
+
+    if payload.razorpay_payment_link_status == "paid":
+        await crud.update_order_payment_status(
+            identifier=payload.razorpay_payment_link_reference_id,
+            payment_status="paid",
+            order_status="Processing",
+            razorpay_payment_id=payload.razorpay_payment_id
+        )
+
     return {"success": True, "message": "Razorpay payment link signature verified successfully"}
 
 @app.post("/api/payment/webhook")
