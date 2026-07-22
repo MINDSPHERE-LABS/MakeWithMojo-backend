@@ -118,11 +118,23 @@ class UserOTPVerify(BaseModel):
     phone: str
     otp: str
 
+import html
+
+def sanitize_string(val: Optional[str]) -> Optional[str]:
+    if val is None or not isinstance(val, str):
+        return val
+    return html.escape(val.strip())
+
 class OrderItemInput(BaseModel):
     product_id: Optional[str] = None
     title: str
     price: float
     thumbnail: Optional[str] = None
+
+    @field_validator('title', mode='before')
+    @classmethod
+    def sanitize_title(cls, v):
+        return sanitize_string(v)
 
 class OrderCreateInput(BaseModel):
     order_id: str
@@ -138,6 +150,11 @@ class OrderCreateInput(BaseModel):
     razorpay_order_id: Optional[str] = None
     razorpay_payment_id: Optional[str] = None
     failure_reason: Optional[str] = None
+
+    @field_validator('name', 'address', 'email', 'order_id', mode='before')
+    @classmethod
+    def sanitize_order_fields(cls, v):
+        return sanitize_string(v)
 
 class PaymentOrderCreateInput(BaseModel):
     amount: float
