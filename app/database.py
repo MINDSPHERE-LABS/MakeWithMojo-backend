@@ -11,11 +11,17 @@ class Database:
 db_helper = Database()
 
 async def connect_to_mongo():
-    logger.info("Connecting to MongoDB...")
-    db_helper.client = AsyncIOMotorClient(settings.MONGODB_URI)
+    logger.info("Connecting to MongoDB with Motor Async Connection Pooling...")
+    db_helper.client = AsyncIOMotorClient(
+        settings.MONGODB_URI,
+        maxPoolSize=50,
+        minPoolSize=5,
+        maxIdleTimeMS=45000,
+        serverSelectionTimeoutMS=5000
+    )
     db_helper.db = db_helper.client[settings.DATABASE_NAME]
     try:
-        # 1. Clean up existing duplicate order entries in database (keeps only the first document)
+        # 1. Clean up existing duplicate order entries in database
         pipeline = [
             {"$group": {"_id": "$order_id", "ids": {"$push": "$_id"}, "count": {"$sum": 1}}},
             {"$match": {"count": {"$gt": 1}}}
@@ -24,7 +30,6 @@ async def connect_to_mongo():
         
         delete_ids = []
         for doc in duplicates:
-            # Keep the first ID, delete the remaining duplicates
             delete_ids.extend(doc["ids"][1:])
             
         if delete_ids:
@@ -32,11 +37,27 @@ async def connect_to_mongo():
             await db_helper.db.orders.delete_many({"_id": {"$in": delete_ids}})
             logger.info("Duplicate orders cleanup completed.")
             
-        # 2. Build the unique index on order_id
+        # 2. Build indexes for max performance & fast queries
+        # Orders Collection Indexes
         await db_helper.db.orders.create_index("order_id", unique=True)
-        logger.info("Unique index on orders.order_id verified/created.")
+        await db_helper.db.orders.create_index("payment_status")
+        await db_helper.db.orders.create_index("phone")
+        await db_helper.db.orders.create_index("user_id")
+
+        # Products Collection Indexes
+        await db_helper.db.products.create_index("slug", unique=True)
+        await db_helper.db.products.create_index("category")
+
+        # Users Collection Indexes
+        await db_helper.db.users.create_index("phone", unique=True)
+        await db_helper.db.users.create_index("session_token")
+
+        # OTPs TTL Index (Automatic Expiration)
+        await db_helper.db.otps.create_index("expires_at", expireAfterSeconds=0)
+
+        logger.info("MongoDB collection indexes verified & created successfully.")
     except Exception as e:
-        logger.warning(f"Failed to verify/create unique index on orders.order_id: {e}")
+        logger.warning(f"Index creation note: {e}")
     logger.info("Connected to MongoDB!")
 
 async def close_mongo_connection():
