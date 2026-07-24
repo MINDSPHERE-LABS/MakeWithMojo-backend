@@ -185,6 +185,8 @@ class PaymentLinkVerifyInput(BaseModel):
 
 class OrderStatusUpdateInput(BaseModel):
     status: str
+    tracking_id: Optional[str] = None
+    courier_name: Optional[str] = None
     notify_whatsapp: bool = False
 
 class AdminLoginInput(BaseModel):

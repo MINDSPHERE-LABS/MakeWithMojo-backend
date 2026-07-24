@@ -160,6 +160,56 @@ class WhatsAppService:
                 "dev_otp": otp
             }
 
+    async def send_tracking_message(self, phone: str, order_id: str, tracking_id: str, courier_name: str = "Standard Courier") -> Dict[str, Any]:
+        """
+        Sends tracking ID notification to customer via WhatsApp API.
+        """
+        clean_phone = "".join(filter(str.isdigit, phone))
+        message_body = (
+            f"📦 *MakeWithMojo Order Dispatch Update*\n\n"
+            f"Hi! Your order *#{order_id}* has been dispatched.\n\n"
+            f"🚚 *Tracking ID / AWB:* {tracking_id}\n"
+            f"📦 *Courier Service:* {courier_name or 'Express Delivery'}\n\n"
+            f"Thank you for shopping with MakeWithMojo! ✨"
+        )
+
+        if not self.phone_number_id or not self.access_token:
+            logger.warning(f"WhatsApp API credentials missing. Logged tracking message for {clean_phone}.")
+            return {
+                "sent": False,
+                "reason": "Missing WhatsApp credentials",
+                "body": message_body
+            }
+
+        url = f"https://graph.facebook.com/{self.api_version}/{self.phone_number_id}/messages"
+        headers = {
+            "Authorization": f"Bearer {self.access_token}",
+            "Content-Type": "application/json"
+        }
+        payload = {
+            "messaging_product": "whatsapp",
+            "recipient_type": "individual",
+            "to": clean_phone,
+            "type": "text",
+            "text": {
+                "preview_url": False,
+                "body": message_body
+            }
+        }
+
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.post(url, headers=headers, json=payload)
+                resp_data = response.json()
+                if response.status_code in (200, 201):
+                    logger.info(f"WhatsApp tracking notification sent to {clean_phone} for order {order_id}")
+                    return {"sent": True, "meta_response": resp_data}
+                else:
+                    return {"sent": False, "status_code": response.status_code, "meta_response": resp_data}
+        except Exception as e:
+            logger.exception("Failed to send WhatsApp tracking message")
+            return {"sent": False, "error": str(e)}
+
 whatsapp_service = WhatsAppService()
 
 

@@ -697,6 +697,8 @@ async def update_admin_order_status(order_id: str, payload: OrderStatusUpdateInp
     updated = await crud.update_order_status_by_admin(
         order_id=order_id,
         new_status=payload.status,
+        tracking_id=payload.tracking_id,
+        courier_name=payload.courier_name,
         notify_whatsapp=payload.notify_whatsapp
     )
     if not updated:
@@ -705,10 +707,19 @@ async def update_admin_order_status(order_id: str, payload: OrderStatusUpdateInp
             detail=f"Order with ID '{order_id}' not found"
         )
 
-    if payload.notify_whatsapp:
-        print(f"\n==================================================")
-        print(f"[WHATSAPP NOTIFICATION HOOK] (Disabled) Would send WhatsApp status alert for order {order_id} -> '{payload.status}'")
-        print(f"==================================================\n")
+    if payload.notify_whatsapp and updated.get("phone"):
+        tr_id = payload.tracking_id or updated.get("tracking_id") or "N/A"
+        cour = payload.courier_name or updated.get("courier_name") or "Standard Courier"
+        try:
+            await whatsapp_service.send_tracking_message(
+                phone=updated["phone"],
+                order_id=order_id,
+                tracking_id=tr_id,
+                courier_name=cour
+            )
+            print(f"[WHATSAPP SENT] Sent tracking ID '{tr_id}' for order #{order_id} to {updated['phone']}")
+        except Exception as e:
+            print(f"[WHATSAPP ERROR] Failed to send tracking message: {e}")
 
     return {"success": True, "order": updated}
 

@@ -398,7 +398,13 @@ async def update_order_payment_status(
     updated = await db.orders.find_one({"_id": ObjectId(order["_id"])})
     return helper_order(updated) if updated else None
 
-async def update_order_status_by_admin(order_id: str, new_status: str, notify_whatsapp: bool = False) -> Optional[dict]:
+async def update_order_status_by_admin(
+    order_id: str,
+    new_status: str,
+    tracking_id: Optional[str] = None,
+    courier_name: Optional[str] = None,
+    notify_whatsapp: bool = False
+) -> Optional[dict]:
     db = get_database()
     order = await get_order_by_identifier(order_id)
     if not order:
@@ -408,6 +414,10 @@ async def update_order_status_by_admin(order_id: str, new_status: str, notify_wh
         "status": new_status,
         "updated_at": datetime.utcnow()
     }
+    if tracking_id is not None:
+        update_fields["tracking_id"] = tracking_id.strip()
+    if courier_name is not None:
+        update_fields["courier_name"] = courier_name.strip()
 
     if new_status in ("Paid", "Processing", "Dispatched", "Shipped", "Delivered", "Confirmed"):
         if order.get("payment_status") != "paid":
