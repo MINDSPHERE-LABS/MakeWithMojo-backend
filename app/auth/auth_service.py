@@ -18,19 +18,28 @@ async def get_or_create_user(phone: str) -> Dict[str, Any]:
     if not user:
         user_doc = {
             "phone": clean_phone,
+            "name": "Guest",
             "createdAt": now,
+            "created_at": now,
             "lastLogin": now
         }
         result = await db.users.insert_one(user_doc)
         user = await db.users.find_one({"_id": result.inserted_id})
-
     else:
         # Update last login timestamp
+        update_dict = {"lastLogin": now}
+        if not user.get("name"):
+            update_dict["name"] = "Guest"
+        if not user.get("created_at"):
+            update_dict["created_at"] = user.get("createdAt") or now
+
         await db.users.update_one(
             {"_id": user["_id"]},
-            {"$set": {"lastLogin": now}}
+            {"$set": update_dict}
         )
         user["lastLogin"] = now
+        if not user.get("name"):
+            user["name"] = "Guest"
 
     user["_id"] = str(user["_id"])
     return user

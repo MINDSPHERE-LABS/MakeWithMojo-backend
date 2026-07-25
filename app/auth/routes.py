@@ -93,6 +93,17 @@ async def verify_otp(payload: VerifyOTPRequest, request: Request):
     # Establish dev session
     token = await create_dev_session(user["_id"])
 
+    # Trigger background Google Sheets customer sync
+    try:
+        from app import crud
+        from app.services.google_sheets_service import google_sheets_service
+        all_users = await crud.get_admin_users_list()
+        google_sheets_service.sync_customers_to_sheet(all_users)
+        analytics = await crud.get_admin_analytics()
+        google_sheets_service.sync_analytics_to_sheet(analytics)
+    except Exception as e:
+        print(f"[GOOGLE SHEETS OTP SYNC ERROR] {e}")
+
     return {
         "success": True,
         "message": "OTP verified successfully.",
@@ -100,7 +111,7 @@ async def verify_otp(payload: VerifyOTPRequest, request: Request):
         "user": {
             "id": user["_id"],
             "phone": user["phone"],
-            "name": user.get("name"),
+            "name": user.get("name", "Guest"),
             "email": user.get("email")
         }
     }

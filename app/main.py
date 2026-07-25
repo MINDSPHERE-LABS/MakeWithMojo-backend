@@ -293,6 +293,13 @@ async def get_me(current_user: dict = Depends(get_current_user)):
 @app.put("/api/auth/me")
 async def update_me(payload: UserProfileUpdate, current_user: dict = Depends(get_current_user)):
     updated_user = await crud.update_user_profile(current_user["_id"], payload.name, payload.email)
+    try:
+        all_users = await crud.get_admin_users_list()
+        google_sheets_service.sync_customers_to_sheet(all_users)
+        analytics = await crud.get_admin_analytics()
+        google_sheets_service.sync_analytics_to_sheet(analytics)
+    except Exception as e:
+        print(f"[GOOGLE SHEETS PROFILE UPDATE SYNC ERROR] {e}")
     return updated_user
 
 @app.post("/api/auth/dev-login")
