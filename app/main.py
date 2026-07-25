@@ -300,54 +300,9 @@ async def login(credentials: UserLogin, request: Request):
 async def get_me(current_user: dict = Depends(get_current_user)):
     return current_user
 
-async def background_sync_all():
-    logger.info("==================================================")
-    logger.info("[BACKGROUND SYNC TRIGGERED] Starting full Google Sheets sync...")
-    try:
-        all_orders = await crud.get_all_orders()
-        o_res = await asyncio.to_thread(google_sheets_service.sync_orders_to_sheet, all_orders)
-        all_users = await crud.get_admin_users_list()
-        u_res = await asyncio.to_thread(google_sheets_service.sync_customers_to_sheet, all_users)
-        analytics = await crud.get_admin_analytics()
-        a_res = await asyncio.to_thread(google_sheets_service.sync_analytics_to_sheet, analytics)
-        logger.info(f"[BACKGROUND SYNC FINISHED] Orders: {o_res}, Users: {u_res}, Analytics: {a_res}")
-        logger.info("==================================================")
-    except Exception as e:
-        logger.error(f"[BACKGROUND GOOGLE SHEETS SYNC ERROR] {e}")
-
-async def background_sync_users():
-    logger.info("==================================================")
-    logger.info("[BACKGROUND SYNC TRIGGERED] Starting Customer Directory sync...")
-    try:
-        all_users = await crud.get_admin_users_list()
-        u_res = await asyncio.to_thread(google_sheets_service.sync_customers_to_sheet, all_users)
-        analytics = await crud.get_admin_analytics()
-        a_res = await asyncio.to_thread(google_sheets_service.sync_analytics_to_sheet, analytics)
-        logger.info(f"[BACKGROUND USERS SYNC FINISHED] Users: {u_res}, Analytics: {a_res}")
-        logger.info("==================================================")
-    except Exception as e:
-        logger.error(f"[BACKGROUND GOOGLE SHEETS USERS SYNC ERROR] {e}")
-
-async def background_sync_orders():
-    logger.info("==================================================")
-    logger.info("[BACKGROUND SYNC TRIGGERED] Starting Orders Management sync...")
-    try:
-        all_orders = await crud.get_all_orders()
-        o_res = await asyncio.to_thread(google_sheets_service.sync_orders_to_sheet, all_orders)
-        analytics = await crud.get_admin_analytics()
-        a_res = await asyncio.to_thread(google_sheets_service.sync_analytics_to_sheet, analytics)
-        logger.info(f"[BACKGROUND ORDERS SYNC FINISHED] Orders: {o_res}, Analytics: {a_res}")
-        logger.info("==================================================")
-    except Exception as e:
-        logger.error(f"[BACKGROUND GOOGLE SHEETS ORDERS SYNC ERROR] {e}")
-
 @app.put("/api/auth/me")
 async def update_me(payload: UserProfileUpdate, current_user: dict = Depends(get_current_user)):
     updated_user = await crud.update_user_profile(current_user["_id"], payload.name, payload.email)
-    try:
-        await background_sync_users()
-    except Exception as e:
-        logger.error(f"Google Sheets profile update sync warning: {e}")
     return updated_user
 
 @app.post("/api/auth/dev-login")
@@ -689,10 +644,6 @@ async def razorpay_webhook(request: Request):
 @app.post("/api/orders")
 async def create_new_order(payload: OrderCreateInput, current_user: dict = Depends(get_current_user)):
     order = await crud.create_order(current_user["_id"], payload)
-    try:
-        await background_sync_all()
-    except Exception as e:
-        logger.error(f"Google Sheets order creation sync warning: {e}")
     return order
 
 @app.get("/api/orders")
@@ -784,62 +735,7 @@ async def update_admin_order_status(order_id: str, payload: OrderStatusUpdateInp
         except Exception as e:
             print(f"[WHATSAPP ERROR] Failed to send tracking message: {e}")
 
-    try:
-        await background_sync_orders()
-    except Exception as e:
-        logger.error(f"Google Sheets admin order status sync warning: {e}")
-
     return {"success": True, "order": updated}
-
-
-# --- Google Sheets Integration Endpoints ---
-@app.get("/api/admin/google-sheets/info")
-async def get_google_sheets_info(current_admin: dict = Depends(get_current_admin_user)):
-    return {
-        "service_account_email": "makewithmojo-sheets-sync@makewithmojo.iam.gserviceaccount.com",
-        "configured_sheet_id": os.getenv("GOOGLE_SHEET_ID", "")
-    }
-
-@app.post("/api/admin/google-sheets/sync")
-async def sync_google_sheets_endpoint(payload: GoogleSheetsSyncInput, current_admin: dict = Depends(get_current_admin_user)):
-    target_sheet_id = payload.sheet_id or os.getenv("GOOGLE_SHEET_ID", "")
-    if target_sheet_id and ("docs.google.com/spreadsheets/d/" in target_sheet_id):
-        # Extract spreadsheet ID from full URL if user pasted full URL
-        parts = target_sheet_id.split("/d/")
-        if len(parts) > 1:
-            target_sheet_id = parts[1].split("/")[0]
-
-    if not target_sheet_id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Please enter a valid Google Sheet ID or URL to sync."
-        )
-
-    orders = await crud.get_all_orders()
-    users = await crud.get_admin_users_list()
-    analytics = await crud.get_admin_analytics()
-
-    orders_ok = await asyncio.to_thread(google_sheets_service.sync_orders_to_sheet, orders, target_sheet_id)
-    users_ok = await asyncio.to_thread(google_sheets_service.sync_customers_to_sheet, users, target_sheet_id)
-    analytics_ok = await asyncio.to_thread(google_sheets_service.sync_analytics_to_sheet, analytics, target_sheet_id)
-
-    if not (orders_ok or users_ok or analytics_ok):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Failed to sync with Google Sheet. Make sure you shared your Google Sheet with the Service Account email 'makewithmojo-sheets-sync@makewithmojo.iam.gserviceaccount.com' as 'Editor'."
-        )
-
-    os.environ["GOOGLE_SHEET_ID"] = target_sheet_id
-
-    return {
-        "success": True,
-        "sheet_id": target_sheet_id,
-        "message": f"Successfully synced {len(orders)} Orders, {len(users)} Customers, and Analytics to Google Sheet!",
-        "synced_counts": {
-            "orders": len(orders),
-            "customers": len(users)
-        }
-    }
 
 
 @app.get("/api/settings")
