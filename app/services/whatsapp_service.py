@@ -80,15 +80,22 @@ class WhatsAppService:
                         ]
                     }
                 }
-            elif self.template_name == "hello_world":
-                logger.warning("Sending hello_world template (note: has no OTP variables).")
+            elif self.template_name in ("hello_world", "3p_direct_integration_test_template"):
                 payload = {
                     "messaging_product": "whatsapp",
                     "to": clean_phone,
                     "type": "template",
                     "template": {
-                        "name": "hello_world",
-                        "language": { "code": self.template_lang }
+                        "name": self.template_name,
+                        "language": { "code": self.template_lang },
+                        "components": [
+                            {
+                                "type": "body",
+                                "parameters": [
+                                    { "type": "text", "text": otp }
+                                ]
+                            }
+                        ]
                     }
                 }
             else:
