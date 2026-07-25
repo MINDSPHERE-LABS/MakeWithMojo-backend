@@ -95,8 +95,10 @@ async def verify_otp(payload: VerifyOTPRequest, request: Request, background_tas
 
     # Trigger background Google Sheets customer sync asynchronously
     async def _sync_job():
-        print("\n==================================================", flush=True)
-        print("[BACKGROUND SYNC TRIGGERED] OTP Verification completed - syncing new customer...", flush=True)
+        import logging
+        log = logging.getLogger("makewithmojo")
+        log.info("==================================================")
+        log.info("[BACKGROUND SYNC TRIGGERED] OTP Verification completed - syncing new customer...")
         try:
             import asyncio
             from app import crud
@@ -105,10 +107,10 @@ async def verify_otp(payload: VerifyOTPRequest, request: Request, background_tas
             await asyncio.to_thread(google_sheets_service.sync_customers_to_sheet, all_users)
             analytics = await crud.get_admin_analytics()
             await asyncio.to_thread(google_sheets_service.sync_analytics_to_sheet, analytics)
-            print("[BACKGROUND OTP SYNC FINISHED] Customers & Analytics synced to Google Sheet!", flush=True)
-            print("==================================================\n", flush=True)
+            log.info("[BACKGROUND OTP SYNC FINISHED] Customers & Analytics synced to Google Sheet!")
+            log.info("==================================================")
         except Exception as e:
-            print(f"❌ [GOOGLE SHEETS OTP SYNC ERROR] {e}", flush=True)
+            log.error(f"[GOOGLE SHEETS OTP SYNC ERROR] {e}")
 
     background_tasks.add_task(_sync_job)
 

@@ -6,7 +6,16 @@ from contextlib import asynccontextmanager
 import os
 import shutil
 import asyncio
+import sys
+import logging
 from pydantic import BaseModel
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    handlers=[logging.StreamHandler(sys.stdout)]
+)
+logger = logging.getLogger("makewithmojo")
 
 from app.database import connect_to_mongo, close_mongo_connection
 from app.models import (
@@ -292,8 +301,8 @@ async def get_me(current_user: dict = Depends(get_current_user)):
     return current_user
 
 async def background_sync_all():
-    print("\n==================================================", flush=True)
-    print("[BACKGROUND SYNC TRIGGERED] Starting full Google Sheets sync...", flush=True)
+    logger.info("==================================================")
+    logger.info("[BACKGROUND SYNC TRIGGERED] Starting full Google Sheets sync...")
     try:
         all_orders = await crud.get_all_orders()
         o_res = await asyncio.to_thread(google_sheets_service.sync_orders_to_sheet, all_orders)
@@ -301,36 +310,36 @@ async def background_sync_all():
         u_res = await asyncio.to_thread(google_sheets_service.sync_customers_to_sheet, all_users)
         analytics = await crud.get_admin_analytics()
         a_res = await asyncio.to_thread(google_sheets_service.sync_analytics_to_sheet, analytics)
-        print(f"[BACKGROUND SYNC FINISHED] Orders: {o_res}, Users: {u_res}, Analytics: {a_res}", flush=True)
-        print("==================================================\n", flush=True)
+        logger.info(f"[BACKGROUND SYNC FINISHED] Orders: {o_res}, Users: {u_res}, Analytics: {a_res}")
+        logger.info("==================================================")
     except Exception as e:
-        print(f"❌ [BACKGROUND GOOGLE SHEETS SYNC ERROR] {e}", flush=True)
+        logger.error(f"[BACKGROUND GOOGLE SHEETS SYNC ERROR] {e}")
 
 async def background_sync_users():
-    print("\n==================================================", flush=True)
-    print("[BACKGROUND SYNC TRIGGERED] Starting Customer Directory sync...", flush=True)
+    logger.info("==================================================")
+    logger.info("[BACKGROUND SYNC TRIGGERED] Starting Customer Directory sync...")
     try:
         all_users = await crud.get_admin_users_list()
         u_res = await asyncio.to_thread(google_sheets_service.sync_customers_to_sheet, all_users)
         analytics = await crud.get_admin_analytics()
         a_res = await asyncio.to_thread(google_sheets_service.sync_analytics_to_sheet, analytics)
-        print(f"[BACKGROUND USERS SYNC FINISHED] Users: {u_res}, Analytics: {a_res}", flush=True)
-        print("==================================================\n", flush=True)
+        logger.info(f"[BACKGROUND USERS SYNC FINISHED] Users: {u_res}, Analytics: {a_res}")
+        logger.info("==================================================")
     except Exception as e:
-        print(f"❌ [BACKGROUND GOOGLE SHEETS USERS SYNC ERROR] {e}", flush=True)
+        logger.error(f"[BACKGROUND GOOGLE SHEETS USERS SYNC ERROR] {e}")
 
 async def background_sync_orders():
-    print("\n==================================================", flush=True)
-    print("[BACKGROUND SYNC TRIGGERED] Starting Orders Management sync...", flush=True)
+    logger.info("==================================================")
+    logger.info("[BACKGROUND SYNC TRIGGERED] Starting Orders Management sync...")
     try:
         all_orders = await crud.get_all_orders()
         o_res = await asyncio.to_thread(google_sheets_service.sync_orders_to_sheet, all_orders)
         analytics = await crud.get_admin_analytics()
         a_res = await asyncio.to_thread(google_sheets_service.sync_analytics_to_sheet, analytics)
-        print(f"[BACKGROUND ORDERS SYNC FINISHED] Orders: {o_res}, Analytics: {a_res}", flush=True)
-        print("==================================================\n", flush=True)
+        logger.info(f"[BACKGROUND ORDERS SYNC FINISHED] Orders: {o_res}, Analytics: {a_res}")
+        logger.info("==================================================")
     except Exception as e:
-        print(f"❌ [BACKGROUND GOOGLE SHEETS ORDERS SYNC ERROR] {e}", flush=True)
+        logger.error(f"[BACKGROUND GOOGLE SHEETS ORDERS SYNC ERROR] {e}")
 
 @app.put("/api/auth/me")
 async def update_me(payload: UserProfileUpdate, background_tasks: BackgroundTasks, current_user: dict = Depends(get_current_user)):
