@@ -37,7 +37,7 @@ class WhatsAppService:
         # If template mode is enabled
         if self.mode == "template" and self.template_name:
             if "makewithmojo" in self.template_name:
-                # Custom approved MakeWithMojo template (Parameter 1: Name, Parameter 2: OTP)
+                # Custom approved MakeWithMojo template (Parameter 1: OTP Code)
                 payload = {
                     "messaging_product": "whatsapp",
                     "to": clean_phone,
@@ -49,7 +49,6 @@ class WhatsAppService:
                             {
                                 "type": "body",
                                 "parameters": [
-                                    { "type": "text", "text": "Customer" },
                                     { "type": "text", "text": otp }
                                 ]
                             }
