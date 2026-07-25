@@ -8,7 +8,7 @@ logger = logging.getLogger("whatsapp_service")
 
 class WhatsAppService:
     def __init__(self):
-        self.phone_number_id = os.getenv("WHATSAPP_PHONE_NUMBER_ID", "1275287995660619")
+        self.phone_number_id = os.getenv("WHATSAPP_PHONE_NUMBER_ID", "1209364552263727")
         self.access_token = os.getenv("WHATSAPP_ACCESS_TOKEN", "")
         self.api_version = os.getenv("WHATSAPP_API_VERSION", "v25.0")
         self.template_name = os.getenv("WHATSAPP_TEMPLATE_NAME", "jaspers_market_order_confirmation_v1")
