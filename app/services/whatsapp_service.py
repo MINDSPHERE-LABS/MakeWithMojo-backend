@@ -38,7 +38,18 @@ class WhatsAppService:
 
         # If template mode is enabled
         if self.mode == "template" and self.template_name:
-            if self.template_name == "jaspers_market_plain_text_v1":
+            if self.template_name == "3p_direct_integration_test_template":
+                # Meta approved direct integration test template
+                payload = {
+                    "messaging_product": "whatsapp",
+                    "to": clean_phone,
+                    "type": "template",
+                    "template": {
+                        "name": "3p_direct_integration_test_template",
+                        "language": { "code": self.template_lang }
+                    }
+                }
+            elif self.template_name == "jaspers_market_plain_text_v1":
                 # Meta approved sample template without parameters
                 payload = {
                     "messaging_product": "whatsapp",
