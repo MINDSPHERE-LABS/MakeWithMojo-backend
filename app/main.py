@@ -292,7 +292,8 @@ async def get_me(current_user: dict = Depends(get_current_user)):
     return current_user
 
 async def background_sync_all():
-    print("[BACKGROUND SYNC] Starting full Google Sheets sync...")
+    print("\n==================================================", flush=True)
+    print("[BACKGROUND SYNC TRIGGERED] Starting full Google Sheets sync...", flush=True)
     try:
         all_orders = await crud.get_all_orders()
         o_res = await asyncio.to_thread(google_sheets_service.sync_orders_to_sheet, all_orders)
@@ -300,31 +301,36 @@ async def background_sync_all():
         u_res = await asyncio.to_thread(google_sheets_service.sync_customers_to_sheet, all_users)
         analytics = await crud.get_admin_analytics()
         a_res = await asyncio.to_thread(google_sheets_service.sync_analytics_to_sheet, analytics)
-        print(f"[BACKGROUND SYNC FINISHED] Orders: {o_res}, Users: {u_res}, Analytics: {a_res}")
+        print(f"[BACKGROUND SYNC FINISHED] Orders: {o_res}, Users: {u_res}, Analytics: {a_res}", flush=True)
+        print("==================================================\n", flush=True)
     except Exception as e:
-        print(f"[BACKGROUND GOOGLE SHEETS SYNC ERROR] {e}")
+        print(f"❌ [BACKGROUND GOOGLE SHEETS SYNC ERROR] {e}", flush=True)
 
 async def background_sync_users():
-    print("[BACKGROUND SYNC] Starting Users Google Sheets sync...")
+    print("\n==================================================", flush=True)
+    print("[BACKGROUND SYNC TRIGGERED] Starting Customer Directory sync...", flush=True)
     try:
         all_users = await crud.get_admin_users_list()
         u_res = await asyncio.to_thread(google_sheets_service.sync_customers_to_sheet, all_users)
         analytics = await crud.get_admin_analytics()
         a_res = await asyncio.to_thread(google_sheets_service.sync_analytics_to_sheet, analytics)
-        print(f"[BACKGROUND USERS SYNC FINISHED] Users: {u_res}, Analytics: {a_res}")
+        print(f"[BACKGROUND USERS SYNC FINISHED] Users: {u_res}, Analytics: {a_res}", flush=True)
+        print("==================================================\n", flush=True)
     except Exception as e:
-        print(f"[BACKGROUND GOOGLE SHEETS USERS SYNC ERROR] {e}")
+        print(f"❌ [BACKGROUND GOOGLE SHEETS USERS SYNC ERROR] {e}", flush=True)
 
 async def background_sync_orders():
-    print("[BACKGROUND SYNC] Starting Orders Google Sheets sync...")
+    print("\n==================================================", flush=True)
+    print("[BACKGROUND SYNC TRIGGERED] Starting Orders Management sync...", flush=True)
     try:
         all_orders = await crud.get_all_orders()
         o_res = await asyncio.to_thread(google_sheets_service.sync_orders_to_sheet, all_orders)
         analytics = await crud.get_admin_analytics()
         a_res = await asyncio.to_thread(google_sheets_service.sync_analytics_to_sheet, analytics)
-        print(f"[BACKGROUND ORDERS SYNC FINISHED] Orders: {o_res}, Analytics: {a_res}")
+        print(f"[BACKGROUND ORDERS SYNC FINISHED] Orders: {o_res}, Analytics: {a_res}", flush=True)
+        print("==================================================\n", flush=True)
     except Exception as e:
-        print(f"[BACKGROUND GOOGLE SHEETS ORDERS SYNC ERROR] {e}")
+        print(f"❌ [BACKGROUND GOOGLE SHEETS ORDERS SYNC ERROR] {e}", flush=True)
 
 @app.put("/api/auth/me")
 async def update_me(payload: UserProfileUpdate, background_tasks: BackgroundTasks, current_user: dict = Depends(get_current_user)):

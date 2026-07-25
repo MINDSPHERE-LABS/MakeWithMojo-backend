@@ -187,15 +187,22 @@ class GoogleSheetsService:
 
             ws.clear()
             ws.update(values=rows, range_name="A1")
-            logger.info(f"Successfully synced {len(orders)} orders to Google Sheet")
+            msg = f"[GOOGLE SHEETS LIVE OK] Synced {len(orders)} orders to Google Sheet (ID: {sh.id})"
+            logger.info(msg)
+            print(f"\n==================================================", flush=True)
+            print(f"📊 {msg}", flush=True)
+            print(f"==================================================\n", flush=True)
             return True
         except Exception as e:
-            logger.error(f"Error syncing orders to Google Sheet: {e}")
+            err_msg = f"[GOOGLE SHEETS ERROR] Failed syncing orders: {e}"
+            logger.error(err_msg)
+            print(f"❌ {err_msg}", flush=True)
             return False
 
     def sync_customers_to_sheet(self, users: List[Dict[str, Any]], sheet_id: Optional[str] = None) -> bool:
         sh = self.get_spreadsheet(sheet_id)
         if not sh:
+            print("❌ [GOOGLE SHEETS ERROR] Cannot open spreadsheet for customer sync", flush=True)
             return False
 
         self.ensure_worksheets(sh)
@@ -226,15 +233,22 @@ class GoogleSheetsService:
 
             ws.clear()
             ws.update(values=rows, range_name="A1")
-            logger.info(f"Successfully synced {len(users)} customers to Google Sheet")
+            msg = f"[GOOGLE SHEETS LIVE OK] Synced {len(users)} customers to Google Sheet (ID: {sh.id})"
+            logger.info(msg)
+            print(f"\n==================================================", flush=True)
+            print(f"👥 {msg}", flush=True)
+            print(f"==================================================\n", flush=True)
             return True
         except Exception as e:
-            logger.error(f"Error syncing customers to Google Sheet: {e}")
+            err_msg = f"[GOOGLE SHEETS ERROR] Failed syncing customers: {e}"
+            logger.error(err_msg)
+            print(f"❌ {err_msg}", flush=True)
             return False
 
     def sync_analytics_to_sheet(self, analytics: Dict[str, Any], sheet_id: Optional[str] = None) -> bool:
         sh = self.get_spreadsheet(sheet_id)
         if not sh:
+            print("❌ [GOOGLE SHEETS ERROR] Cannot open spreadsheet for analytics sync", flush=True)
             return False
 
         self.ensure_worksheets(sh)
@@ -254,10 +268,14 @@ class GoogleSheetsService:
 
             ws.clear()
             ws.update(values=rows, range_name="A1")
-            logger.info("Successfully synced Analytics to Google Sheet")
+            msg = f"[GOOGLE SHEETS LIVE OK] Synced Analytics metrics to Google Sheet (ID: {sh.id})"
+            logger.info(msg)
+            print(f"📈 {msg}\n", flush=True)
             return True
         except Exception as e:
-            logger.error(f"Error syncing Analytics to Google Sheet: {e}")
+            err_msg = f"[GOOGLE SHEETS ERROR] Failed syncing analytics: {e}"
+            logger.error(err_msg)
+            print(f"❌ {err_msg}", flush=True)
             return False
 
 google_sheets_service = GoogleSheetsService()
