@@ -11,7 +11,7 @@ class WhatsAppService:
         self.phone_number_id = os.getenv("WHATSAPP_PHONE_NUMBER_ID", "1209364552263727")
         self.access_token = os.getenv("WHATSAPP_ACCESS_TOKEN", "")
         self.api_version = os.getenv("WHATSAPP_API_VERSION", "v25.0")
-        self.template_name = os.getenv("WHATSAPP_TEMPLATE_NAME", "3p_direct_integration_test_template")
+        self.template_name = os.getenv("WHATSAPP_TEMPLATE_NAME", "makewithmojov3")
         self.template_lang = os.getenv("WHATSAPP_TEMPLATE_LANG", "en_US")
         self.mode = os.getenv("WHATSAPP_MESSAGE_MODE", "template").lower()
 
@@ -36,7 +36,27 @@ class WhatsAppService:
 
         # If template mode is enabled
         if self.mode == "template" and self.template_name:
-            if self.template_name == "3p_direct_integration_test_template":
+            if "makewithmojo" in self.template_name:
+                # Custom approved MakeWithMojo template (Parameter 1: Name, Parameter 2: OTP)
+                payload = {
+                    "messaging_product": "whatsapp",
+                    "to": clean_phone,
+                    "type": "template",
+                    "template": {
+                        "name": self.template_name,
+                        "language": { "code": self.template_lang },
+                        "components": [
+                            {
+                                "type": "body",
+                                "parameters": [
+                                    { "type": "text", "text": "Customer" },
+                                    { "type": "text", "text": otp }
+                                ]
+                            }
+                        ]
+                    }
+                }
+            elif self.template_name == "jaspers_market_plain_text_v1":
                 # Meta approved direct integration test template
                 payload = {
                     "messaging_product": "whatsapp",
