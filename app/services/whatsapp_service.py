@@ -131,6 +131,29 @@ class WhatsAppService:
                 response = await client.post(url, headers=headers, json=payload)
                 resp_data = response.json()
                 
+                # Automatic retry if Meta complains about mismatched header/button component parameters
+                if response.status_code >= 400 and ("component" in response.text.lower() or "missing expected field" in response.text.lower()):
+                    logger.warning("[WHATSAPP SERVICE] Retrying template with clean body parameter payload...")
+                    fallback_payload = {
+                        "messaging_product": "whatsapp",
+                        "to": clean_phone,
+                        "type": "template",
+                        "template": {
+                            "name": self.template_name,
+                            "language": { "code": self.template_lang },
+                            "components": [
+                                {
+                                    "type": "body",
+                                    "parameters": [
+                                        { "type": "text", "text": otp }
+                                    ]
+                                }
+                            ]
+                        }
+                    }
+                    response = await client.post(url, headers=headers, json=fallback_payload)
+                    resp_data = response.json()
+
                 if response.status_code in (200, 201):
                     logger.info(f"WhatsApp OTP dispatched to {clean_phone}")
                     print(f"[WHATSAPP SERVICE] OTP successfully delivered to {clean_phone} via Meta API!")
