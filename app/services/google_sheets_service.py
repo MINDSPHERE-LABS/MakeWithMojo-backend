@@ -66,8 +66,19 @@ class GoogleSheetsService:
             logger.error(f"Failed to auth from embedded B64 credentials: {e}")
             return None
 
+    def clean_sheet_id(self, raw_id: str) -> str:
+        if not raw_id:
+            return ""
+        raw_id = raw_id.strip()
+        if "docs.google.com/spreadsheets/d/" in raw_id:
+            parts = raw_id.split("/d/")
+            if len(parts) > 1:
+                raw_id = parts[1].split("/")[0].split("?")[0]
+        return raw_id.split("/")[0].split("?")[0].strip()
+
     def get_spreadsheet(self, sheet_id: Optional[str] = None):
-        target_id = sheet_id or os.getenv("GOOGLE_SHEET_ID") or DEFAULT_SHEET_ID
+        raw = sheet_id or os.getenv("GOOGLE_SHEET_ID") or DEFAULT_SHEET_ID
+        target_id = self.clean_sheet_id(raw) or DEFAULT_SHEET_ID
         if not target_id:
             return None
 
@@ -80,6 +91,7 @@ class GoogleSheetsService:
             return self.spreadsheet
         except Exception as e:
             logger.error(f"Failed to open Google Sheet ID '{target_id}': {e}")
+            print(f"[GOOGLE SHEETS ERROR] Failed to open Sheet ID '{target_id}': {e}")
             return None
 
     def ensure_worksheets(self, spreadsheet=None):

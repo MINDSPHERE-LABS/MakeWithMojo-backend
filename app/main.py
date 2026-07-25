@@ -291,31 +291,37 @@ async def get_me(current_user: dict = Depends(get_current_user)):
     return current_user
 
 async def background_sync_all():
+    print("[BACKGROUND SYNC] Starting full Google Sheets sync...")
     try:
         all_orders = await crud.get_all_orders()
-        google_sheets_service.sync_orders_to_sheet(all_orders)
+        o_res = google_sheets_service.sync_orders_to_sheet(all_orders)
         all_users = await crud.get_admin_users_list()
-        google_sheets_service.sync_customers_to_sheet(all_users)
+        u_res = google_sheets_service.sync_customers_to_sheet(all_users)
         analytics = await crud.get_admin_analytics()
-        google_sheets_service.sync_analytics_to_sheet(analytics)
+        a_res = google_sheets_service.sync_analytics_to_sheet(analytics)
+        print(f"[BACKGROUND SYNC FINISHED] Orders: {o_res}, Users: {u_res}, Analytics: {a_res}")
     except Exception as e:
         print(f"[BACKGROUND GOOGLE SHEETS SYNC ERROR] {e}")
 
 async def background_sync_users():
+    print("[BACKGROUND SYNC] Starting Users Google Sheets sync...")
     try:
         all_users = await crud.get_admin_users_list()
-        google_sheets_service.sync_customers_to_sheet(all_users)
+        u_res = google_sheets_service.sync_customers_to_sheet(all_users)
         analytics = await crud.get_admin_analytics()
-        google_sheets_service.sync_analytics_to_sheet(analytics)
+        a_res = google_sheets_service.sync_analytics_to_sheet(analytics)
+        print(f"[BACKGROUND USERS SYNC FINISHED] Users: {u_res}, Analytics: {a_res}")
     except Exception as e:
         print(f"[BACKGROUND GOOGLE SHEETS USERS SYNC ERROR] {e}")
 
 async def background_sync_orders():
+    print("[BACKGROUND SYNC] Starting Orders Google Sheets sync...")
     try:
         all_orders = await crud.get_all_orders()
-        google_sheets_service.sync_orders_to_sheet(all_orders)
+        o_res = google_sheets_service.sync_orders_to_sheet(all_orders)
         analytics = await crud.get_admin_analytics()
-        google_sheets_service.sync_analytics_to_sheet(analytics)
+        a_res = google_sheets_service.sync_analytics_to_sheet(analytics)
+        print(f"[BACKGROUND ORDERS SYNC FINISHED] Orders: {o_res}, Analytics: {a_res}")
     except Exception as e:
         print(f"[BACKGROUND GOOGLE SHEETS ORDERS SYNC ERROR] {e}")
 
