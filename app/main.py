@@ -342,9 +342,12 @@ async def background_sync_orders():
         logger.error(f"[BACKGROUND GOOGLE SHEETS ORDERS SYNC ERROR] {e}")
 
 @app.put("/api/auth/me")
-async def update_me(payload: UserProfileUpdate, background_tasks: BackgroundTasks, current_user: dict = Depends(get_current_user)):
+async def update_me(payload: UserProfileUpdate, current_user: dict = Depends(get_current_user)):
     updated_user = await crud.update_user_profile(current_user["_id"], payload.name, payload.email)
-    background_tasks.add_task(background_sync_users)
+    try:
+        await background_sync_users()
+    except Exception as e:
+        logger.error(f"Google Sheets profile update sync warning: {e}")
     return updated_user
 
 @app.post("/api/auth/dev-login")
@@ -683,11 +686,13 @@ async def razorpay_webhook(request: Request):
 
     return {"status": "ok", "event": event_type}
 
-# --- Order Routes ---
 @app.post("/api/orders")
-async def create_new_order(payload: OrderCreateInput, background_tasks: BackgroundTasks, current_user: dict = Depends(get_current_user)):
+async def create_new_order(payload: OrderCreateInput, current_user: dict = Depends(get_current_user)):
     order = await crud.create_order(current_user["_id"], payload)
-    background_tasks.add_task(background_sync_all)
+    try:
+        await background_sync_all()
+    except Exception as e:
+        logger.error(f"Google Sheets order creation sync warning: {e}")
     return order
 
 @app.get("/api/orders")
@@ -751,7 +756,7 @@ async def get_admin_analytics_endpoint(current_admin: dict = Depends(get_current
     return analytics
 
 @app.put("/api/admin/orders/{order_id}/status")
-async def update_admin_order_status(order_id: str, payload: OrderStatusUpdateInput, background_tasks: BackgroundTasks, current_admin: dict = Depends(get_current_admin_user)):
+async def update_admin_order_status(order_id: str, payload: OrderStatusUpdateInput, current_admin: dict = Depends(get_current_admin_user)):
     updated = await crud.update_order_status_by_admin(
         order_id=order_id,
         new_status=payload.status,
@@ -779,7 +784,10 @@ async def update_admin_order_status(order_id: str, payload: OrderStatusUpdateInp
         except Exception as e:
             print(f"[WHATSAPP ERROR] Failed to send tracking message: {e}")
 
-    background_tasks.add_task(background_sync_orders)
+    try:
+        await background_sync_orders()
+    except Exception as e:
+        logger.error(f"Google Sheets admin order status sync warning: {e}")
 
     return {"success": True, "order": updated}
 
