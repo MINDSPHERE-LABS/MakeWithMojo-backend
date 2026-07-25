@@ -96,12 +96,14 @@ async def verify_otp(payload: VerifyOTPRequest, request: Request, background_tas
     # Trigger background Google Sheets customer sync asynchronously
     async def _sync_job():
         try:
+            import asyncio
             from app import crud
             from app.services.google_sheets_service import google_sheets_service
             all_users = await crud.get_admin_users_list()
-            google_sheets_service.sync_customers_to_sheet(all_users)
+            await asyncio.to_thread(google_sheets_service.sync_customers_to_sheet, all_users)
             analytics = await crud.get_admin_analytics()
-            google_sheets_service.sync_analytics_to_sheet(analytics)
+            await asyncio.to_thread(google_sheets_service.sync_analytics_to_sheet, analytics)
+            print("[BACKGROUND OTP SYNC FINISHED] Customers & Analytics synced to Google Sheet!")
         except Exception as e:
             print(f"[GOOGLE SHEETS OTP SYNC ERROR] {e}")
 

@@ -5,6 +5,7 @@ from typing import List, Optional
 from contextlib import asynccontextmanager
 import os
 import shutil
+import asyncio
 from pydantic import BaseModel
 
 from app.database import connect_to_mongo, close_mongo_connection
@@ -294,11 +295,11 @@ async def background_sync_all():
     print("[BACKGROUND SYNC] Starting full Google Sheets sync...")
     try:
         all_orders = await crud.get_all_orders()
-        o_res = google_sheets_service.sync_orders_to_sheet(all_orders)
+        o_res = await asyncio.to_thread(google_sheets_service.sync_orders_to_sheet, all_orders)
         all_users = await crud.get_admin_users_list()
-        u_res = google_sheets_service.sync_customers_to_sheet(all_users)
+        u_res = await asyncio.to_thread(google_sheets_service.sync_customers_to_sheet, all_users)
         analytics = await crud.get_admin_analytics()
-        a_res = google_sheets_service.sync_analytics_to_sheet(analytics)
+        a_res = await asyncio.to_thread(google_sheets_service.sync_analytics_to_sheet, analytics)
         print(f"[BACKGROUND SYNC FINISHED] Orders: {o_res}, Users: {u_res}, Analytics: {a_res}")
     except Exception as e:
         print(f"[BACKGROUND GOOGLE SHEETS SYNC ERROR] {e}")
@@ -307,9 +308,9 @@ async def background_sync_users():
     print("[BACKGROUND SYNC] Starting Users Google Sheets sync...")
     try:
         all_users = await crud.get_admin_users_list()
-        u_res = google_sheets_service.sync_customers_to_sheet(all_users)
+        u_res = await asyncio.to_thread(google_sheets_service.sync_customers_to_sheet, all_users)
         analytics = await crud.get_admin_analytics()
-        a_res = google_sheets_service.sync_analytics_to_sheet(analytics)
+        a_res = await asyncio.to_thread(google_sheets_service.sync_analytics_to_sheet, analytics)
         print(f"[BACKGROUND USERS SYNC FINISHED] Users: {u_res}, Analytics: {a_res}")
     except Exception as e:
         print(f"[BACKGROUND GOOGLE SHEETS USERS SYNC ERROR] {e}")
@@ -318,9 +319,9 @@ async def background_sync_orders():
     print("[BACKGROUND SYNC] Starting Orders Google Sheets sync...")
     try:
         all_orders = await crud.get_all_orders()
-        o_res = google_sheets_service.sync_orders_to_sheet(all_orders)
+        o_res = await asyncio.to_thread(google_sheets_service.sync_orders_to_sheet, all_orders)
         analytics = await crud.get_admin_analytics()
-        a_res = google_sheets_service.sync_analytics_to_sheet(analytics)
+        a_res = await asyncio.to_thread(google_sheets_service.sync_analytics_to_sheet, analytics)
         print(f"[BACKGROUND ORDERS SYNC FINISHED] Orders: {o_res}, Analytics: {a_res}")
     except Exception as e:
         print(f"[BACKGROUND GOOGLE SHEETS ORDERS SYNC ERROR] {e}")
@@ -795,9 +796,9 @@ async def sync_google_sheets_endpoint(payload: GoogleSheetsSyncInput, current_ad
     users = await crud.get_admin_users_list()
     analytics = await crud.get_admin_analytics()
 
-    orders_ok = google_sheets_service.sync_orders_to_sheet(orders, target_sheet_id)
-    users_ok = google_sheets_service.sync_customers_to_sheet(users, target_sheet_id)
-    analytics_ok = google_sheets_service.sync_analytics_to_sheet(analytics, target_sheet_id)
+    orders_ok = await asyncio.to_thread(google_sheets_service.sync_orders_to_sheet, orders, target_sheet_id)
+    users_ok = await asyncio.to_thread(google_sheets_service.sync_customers_to_sheet, users, target_sheet_id)
+    analytics_ok = await asyncio.to_thread(google_sheets_service.sync_analytics_to_sheet, analytics, target_sheet_id)
 
     if not (orders_ok or users_ok or analytics_ok):
         raise HTTPException(
