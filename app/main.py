@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, status, Query, File, UploadFile, Depends, Header, Request
+from fastapi import FastAPI, HTTPException, status, Query, File, UploadFile, Depends, Header, Request, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from typing import List, Optional
@@ -290,16 +290,39 @@ async def login(credentials: UserLogin, request: Request):
 async def get_me(current_user: dict = Depends(get_current_user)):
     return current_user
 
-@app.put("/api/auth/me")
-async def update_me(payload: UserProfileUpdate, current_user: dict = Depends(get_current_user)):
-    updated_user = await crud.update_user_profile(current_user["_id"], payload.name, payload.email)
+async def background_sync_all():
+    try:
+        all_orders = await crud.get_all_orders()
+        google_sheets_service.sync_orders_to_sheet(all_orders)
+        all_users = await crud.get_admin_users_list()
+        google_sheets_service.sync_customers_to_sheet(all_users)
+        analytics = await crud.get_admin_analytics()
+        google_sheets_service.sync_analytics_to_sheet(analytics)
+    except Exception as e:
+        print(f"[BACKGROUND GOOGLE SHEETS SYNC ERROR] {e}")
+
+async def background_sync_users():
     try:
         all_users = await crud.get_admin_users_list()
         google_sheets_service.sync_customers_to_sheet(all_users)
         analytics = await crud.get_admin_analytics()
         google_sheets_service.sync_analytics_to_sheet(analytics)
     except Exception as e:
-        print(f"[GOOGLE SHEETS PROFILE UPDATE SYNC ERROR] {e}")
+        print(f"[BACKGROUND GOOGLE SHEETS USERS SYNC ERROR] {e}")
+
+async def background_sync_orders():
+    try:
+        all_orders = await crud.get_all_orders()
+        google_sheets_service.sync_orders_to_sheet(all_orders)
+        analytics = await crud.get_admin_analytics()
+        google_sheets_service.sync_analytics_to_sheet(analytics)
+    except Exception as e:
+        print(f"[BACKGROUND GOOGLE SHEETS ORDERS SYNC ERROR] {e}")
+
+@app.put("/api/auth/me")
+async def update_me(payload: UserProfileUpdate, background_tasks: BackgroundTasks, current_user: dict = Depends(get_current_user)):
+    updated_user = await crud.update_user_profile(current_user["_id"], payload.name, payload.email)
+    background_tasks.add_task(background_sync_users)
     return updated_user
 
 @app.post("/api/auth/dev-login")
@@ -640,8 +663,9 @@ async def razorpay_webhook(request: Request):
 
 # --- Order Routes ---
 @app.post("/api/orders")
-async def create_new_order(payload: OrderCreateInput, current_user: dict = Depends(get_current_user)):
+async def create_new_order(payload: OrderCreateInput, background_tasks: BackgroundTasks, current_user: dict = Depends(get_current_user)):
     order = await crud.create_order(current_user["_id"], payload)
+    background_tasks.add_task(background_sync_all)
     return order
 
 @app.get("/api/orders")
@@ -705,7 +729,7 @@ async def get_admin_analytics_endpoint(current_admin: dict = Depends(get_current
     return analytics
 
 @app.put("/api/admin/orders/{order_id}/status")
-async def update_admin_order_status(order_id: str, payload: OrderStatusUpdateInput, current_admin: dict = Depends(get_current_admin_user)):
+async def update_admin_order_status(order_id: str, payload: OrderStatusUpdateInput, background_tasks: BackgroundTasks, current_admin: dict = Depends(get_current_admin_user)):
     updated = await crud.update_order_status_by_admin(
         order_id=order_id,
         new_status=payload.status,
@@ -733,13 +757,7 @@ async def update_admin_order_status(order_id: str, payload: OrderStatusUpdateInp
         except Exception as e:
             print(f"[WHATSAPP ERROR] Failed to send tracking message: {e}")
 
-    # Background trigger for Google Sheets auto-sync
-    try:
-        if os.getenv("GOOGLE_SHEET_ID"):
-            orders_all = await crud.get_all_orders()
-            google_sheets_service.sync_orders_to_sheet(orders_all)
-    except Exception as e:
-        print(f"[GOOGLE SHEETS SYNC WARNING] Auto-sync order update: {e}")
+    background_tasks.add_task(background_sync_orders)
 
     return {"success": True, "order": updated}
 

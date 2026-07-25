@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, status, Header, Depends, Request
+from fastapi import APIRouter, HTTPException, status, Header, Depends, Request, BackgroundTasks
 from typing import Optional
 from app.auth.models import SendOTPRequest, VerifyOTPRequest
 from app.auth.otp_service import create_and_store_otp, verify_otp_code, normalize_phone
@@ -57,7 +57,7 @@ async def send_otp(payload: SendOTPRequest, request: Request):
 @router.post("/verify-otp")
 @router.post("/auth/verify-otp")
 @router.post("/api/auth/verify-otp")
-async def verify_otp(payload: VerifyOTPRequest, request: Request):
+async def verify_otp(payload: VerifyOTPRequest, request: Request, background_tasks: BackgroundTasks):
     """
     1. Enforces 5 attempts per 2 minutes rate limit.
     2. Verifies 6-digit OTP against stored hash (2 min expiry).
@@ -93,16 +93,19 @@ async def verify_otp(payload: VerifyOTPRequest, request: Request):
     # Establish dev session
     token = await create_dev_session(user["_id"])
 
-    # Trigger background Google Sheets customer sync
-    try:
-        from app import crud
-        from app.services.google_sheets_service import google_sheets_service
-        all_users = await crud.get_admin_users_list()
-        google_sheets_service.sync_customers_to_sheet(all_users)
-        analytics = await crud.get_admin_analytics()
-        google_sheets_service.sync_analytics_to_sheet(analytics)
-    except Exception as e:
-        print(f"[GOOGLE SHEETS OTP SYNC ERROR] {e}")
+    # Trigger background Google Sheets customer sync asynchronously
+    async def _sync_job():
+        try:
+            from app import crud
+            from app.services.google_sheets_service import google_sheets_service
+            all_users = await crud.get_admin_users_list()
+            google_sheets_service.sync_customers_to_sheet(all_users)
+            analytics = await crud.get_admin_analytics()
+            google_sheets_service.sync_analytics_to_sheet(analytics)
+        except Exception as e:
+            print(f"[GOOGLE SHEETS OTP SYNC ERROR] {e}")
+
+    background_tasks.add_task(_sync_job)
 
     return {
         "success": True,
