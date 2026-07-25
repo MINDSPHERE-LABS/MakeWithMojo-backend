@@ -13,7 +13,7 @@ class WhatsAppService:
         self.api_version = os.getenv("WHATSAPP_API_VERSION", "v25.0")
         self.template_name = os.getenv("WHATSAPP_TEMPLATE_NAME", "jaspers_market_order_confirmation_v1")
         self.template_lang = os.getenv("WHATSAPP_TEMPLATE_LANG", "en_US")
-        self.mode = os.getenv("WHATSAPP_MESSAGE_MODE", "template").lower()
+        self.mode = os.getenv("WHATSAPP_MESSAGE_MODE", "text").lower()
 
     async def send_otp_message(self, phone: str, otp: str) -> Dict[str, Any]:
         """
@@ -131,27 +131,30 @@ class WhatsAppService:
                 response = await client.post(url, headers=headers, json=payload)
                 resp_data = response.json()
                 
-                # Automatic retry if Meta complains about mismatched header/button component parameters
-                if response.status_code >= 400 and ("component" in response.text.lower() or "missing expected field" in response.text.lower()):
-                    logger.warning("[WHATSAPP SERVICE] Retrying template with clean body parameter payload...")
-                    fallback_payload = {
+                # If text mode returns 24h customer window error (code 131047), retry with approved template
+                if response.status_code >= 400 and (resp_data.get("error", {}).get("code") == 131047 or "24" in response.text):
+                    logger.warning("[WHATSAPP SERVICE] Customer service window expired. Auto-retrying with active Meta template...")
+                    current_date = datetime.now().strftime("%b %d, %Y")
+                    template_fallback = {
                         "messaging_product": "whatsapp",
                         "to": clean_phone,
                         "type": "template",
                         "template": {
-                            "name": self.template_name,
+                            "name": "jaspers_market_order_confirmation_v1",
                             "language": { "code": self.template_lang },
                             "components": [
                                 {
                                     "type": "body",
                                     "parameters": [
-                                        { "type": "text", "text": otp }
+                                        { "type": "text", "text": "MakeWithMojo User" },
+                                        { "type": "text", "text": otp },
+                                        { "type": "text", "text": current_date }
                                     ]
                                 }
                             ]
                         }
                     }
-                    response = await client.post(url, headers=headers, json=fallback_payload)
+                    response = await client.post(url, headers=headers, json=template_fallback)
                     resp_data = response.json()
 
                 if response.status_code in (200, 201):
