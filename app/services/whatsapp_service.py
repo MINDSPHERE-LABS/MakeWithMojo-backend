@@ -81,7 +81,7 @@ class WhatsAppService:
                     }
                 }
             else:
-                # Custom approved OTP template with body parameter {{1}}
+                # Custom approved OTP template with body parameter {{1}} and optional Copy Code button
                 payload = {
                     "messaging_product": "whatsapp",
                     "to": clean_phone,
@@ -94,6 +94,14 @@ class WhatsAppService:
                                 "type": "body",
                                 "parameters": [
                                     { "type": "text", "text": otp }
+                                ]
+                            },
+                            {
+                                "type": "button",
+                                "sub_type": "copy_code",
+                                "index": "0",
+                                "parameters": [
+                                    { "type": "coupon_code", "coupon_code": otp }
                                 ]
                             }
                         ]
