@@ -11,11 +11,9 @@ class WhatsAppService:
         self.phone_number_id = os.getenv("WHATSAPP_PHONE_NUMBER_ID", "1209364552263727")
         self.access_token = os.getenv("WHATSAPP_ACCESS_TOKEN", "")
         self.api_version = os.getenv("WHATSAPP_API_VERSION", "v25.0")
-        self.template_name = os.getenv("WHATSAPP_TEMPLATE_NAME", "jaspers_market_order_confirmation_v1")
-        if self.template_name == "hello_world":
-            self.template_name = "jaspers_market_order_confirmation_v1"
+        self.template_name = os.getenv("WHATSAPP_TEMPLATE_NAME", "3p_direct_integration_test_template")
         self.template_lang = os.getenv("WHATSAPP_TEMPLATE_LANG", "en_US")
-        self.mode = os.getenv("WHATSAPP_MESSAGE_MODE", "text").lower()
+        self.mode = os.getenv("WHATSAPP_MESSAGE_MODE", "template").lower()
 
     async def send_otp_message(self, phone: str, otp: str) -> Dict[str, Any]:
         """
@@ -144,27 +142,15 @@ class WhatsAppService:
                 response = await client.post(url, headers=headers, json=payload)
                 resp_data = response.json()
                 
-                # If text mode or hello_world returns 24h window error (131047) or hello_world restriction (131058), retry with active template
-                if response.status_code >= 400 and (resp_data.get("error", {}).get("code") in (131047, 131058) or "hello world" in response.text.lower()):
-                    logger.warning("[WHATSAPP SERVICE] Customer service window expired. Auto-retrying with active Meta template...")
-                    current_date = datetime.now().strftime("%b %d, %Y")
+                if response.status_code >= 400 and (resp_data.get("error", {}).get("code") in (131047, 131058, 132001) or "translation" in response.text.lower()):
+                    logger.warning("[WHATSAPP SERVICE] Auto-retrying with active 3p_direct_integration_test_template...")
                     template_fallback = {
                         "messaging_product": "whatsapp",
                         "to": clean_phone,
                         "type": "template",
                         "template": {
-                            "name": "jaspers_market_order_confirmation_v1",
-                            "language": { "code": self.template_lang },
-                            "components": [
-                                {
-                                    "type": "body",
-                                    "parameters": [
-                                        { "type": "text", "text": "MakeWithMojo User" },
-                                        { "type": "text", "text": otp },
-                                        { "type": "text", "text": current_date }
-                                    ]
-                                }
-                            ]
+                            "name": "3p_direct_integration_test_template",
+                            "language": { "code": self.template_lang }
                         }
                     }
                     response = await client.post(url, headers=headers, json=template_fallback)
