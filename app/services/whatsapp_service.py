@@ -169,18 +169,34 @@ class WhatsAppService:
                 resp_data = response.json()
                 
                 if response.status_code >= 400 and (resp_data.get("error", {}).get("code") in (131047, 131058, 132001) or "translation" in response.text.lower()):
-                    logger.warning("[WHATSAPP SERVICE] Auto-retrying with active 3p_direct_integration_test_template...")
-                    template_fallback = {
+                    logger.warning("[WHATSAPP SERVICE] Template review or language code mismatch. Retrying with language 'en'...")
+                    alt_lang = "en" if self.template_lang == "en_US" else "en_US"
+                    retry_payload_lang = {
                         "messaging_product": "whatsapp",
                         "to": clean_phone,
                         "type": "template",
                         "template": {
-                            "name": "3p_direct_integration_test_template",
-                            "language": { "code": self.template_lang }
+                            "name": self.template_name,
+                            "language": { "code": alt_lang },
+                            "components": payload.get("template", {}).get("components", [])
                         }
                     }
-                    response = await client.post(url, headers=headers, json=template_fallback)
+                    response = await client.post(url, headers=headers, json=retry_payload_lang)
                     resp_data = response.json()
+
+                    if response.status_code >= 400:
+                        logger.warning("[WHATSAPP SERVICE] Auto-retrying with active 3p_direct_integration_test_template...")
+                        template_fallback = {
+                            "messaging_product": "whatsapp",
+                            "to": clean_phone,
+                            "type": "template",
+                            "template": {
+                                "name": "3p_direct_integration_test_template",
+                                "language": { "code": "en_US" }
+                            }
+                        }
+                        response = await client.post(url, headers=headers, json=template_fallback)
+                        resp_data = response.json()
 
                 if response.status_code in (200, 201):
                     logger.info(f"WhatsApp OTP dispatched to {clean_phone}")
