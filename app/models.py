@@ -33,6 +33,7 @@ class ProductBase(BaseModel):
     new_arrival: bool = False
     best_seller: bool = False
     published: bool = True
+    pinned_to_top: bool = False
 
 class ProductCreate(ProductBase):
     pass
@@ -68,6 +69,7 @@ class ProductUpdate(BaseModel):
     new_arrival: Optional[bool] = None
     best_seller: Optional[bool] = None
     published: Optional[bool] = None
+    pinned_to_top: Optional[bool] = None
 
 class Product(ProductBase):
     id: str = Field(alias="_id")

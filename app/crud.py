@@ -50,7 +50,7 @@ async def get_products(
             {"description": {"$regex": search, "$options": "i"}}
         ]
 
-    cursor = db.products.find(query).skip(skip).limit(limit)
+    cursor = db.products.find(query).sort([("pinned_to_top", -1), ("created_at", -1)]).skip(skip).limit(limit)
     products = []
     async for product in cursor:
         products.append(helper_product(product))
