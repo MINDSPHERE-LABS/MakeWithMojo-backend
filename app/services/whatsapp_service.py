@@ -10,9 +10,9 @@ class WhatsAppService:
     def __init__(self):
         self.phone_number_id = os.getenv("WHATSAPP_PHONE_NUMBER_ID", "1209364552263727")
         self.access_token = os.getenv("WHATSAPP_ACCESS_TOKEN", "")
-        self.api_version = os.getenv("WHATSAPP_API_VERSION", "v25.0")
+        self.api_version = os.getenv("WHATSAPP_API_VERSION", "v21.0")
         self.template_name = os.getenv("WHATSAPP_TEMPLATE_NAME", "makewithmojov3")
-        self.template_lang = os.getenv("WHATSAPP_TEMPLATE_LANG", "en_US")
+        self.template_lang = os.getenv("WHATSAPP_TEMPLATE_LANG", "en")
         self.mode = os.getenv("WHATSAPP_MESSAGE_MODE", "template").lower()
 
     async def send_otp_message(self, phone: str, otp: str) -> Dict[str, Any]:
