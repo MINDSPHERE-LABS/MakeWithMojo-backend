@@ -196,9 +196,10 @@ class AdminLoginInput(BaseModel):
     password: str
 
 class StoreSettings(BaseModel):
-    delivery_charge_threshold: int
-    delivery_charge: int
-    cod_enabled: bool
+    delivery_charge_threshold: float = 999.0
+    delivery_charge: float = 70.0
+    cod_fee: float = 40.0
+    cod_enabled: bool = True
 
 
 

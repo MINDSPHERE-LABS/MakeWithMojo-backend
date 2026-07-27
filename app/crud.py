@@ -437,9 +437,10 @@ async def get_store_settings() -> dict:
     settings_doc = await db.settings.find_one({})
     if not settings_doc:
         default_settings = {
-            "delivery_charge_threshold": 999,
-            "delivery_charge": 99,
-            "cod_enabled": False,
+            "delivery_charge_threshold": 999.0,
+            "delivery_charge": 70.0,
+            "cod_fee": 40.0,
+            "cod_enabled": True,
             "created_at": datetime.utcnow(),
             "updated_at": datetime.utcnow()
         }
@@ -447,6 +448,12 @@ async def get_store_settings() -> dict:
         default_settings["_id"] = str(result.inserted_id)
         return default_settings
     
+    # Ensure fallback keys exist for legacy settings documents
+    if "cod_fee" not in settings_doc:
+        settings_doc["cod_fee"] = 40.0
+    if "cod_enabled" not in settings_doc:
+        settings_doc["cod_enabled"] = True
+        
     settings_doc["_id"] = str(settings_doc["_id"])
     return settings_doc
 
