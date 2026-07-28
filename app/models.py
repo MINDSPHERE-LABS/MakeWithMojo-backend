@@ -39,6 +39,7 @@ class ProductBase(BaseModel):
     allow_size_variants: bool = False
     size_variants: List[dict] = Field(default_factory=list)
     allow_quantity: bool = True
+    disable_cod: bool = False
 
 class ProductCreate(ProductBase):
     pass
@@ -80,6 +81,7 @@ class ProductUpdate(BaseModel):
     allow_size_variants: Optional[bool] = None
     size_variants: Optional[List[dict]] = None
     allow_quantity: Optional[bool] = None
+    disable_cod: Optional[bool] = None
 
 class Product(ProductBase):
     id: str = Field(alias="_id")
