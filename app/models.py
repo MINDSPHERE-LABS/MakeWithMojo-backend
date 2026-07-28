@@ -34,6 +34,11 @@ class ProductBase(BaseModel):
     best_seller: bool = False
     published: bool = True
     pinned_to_top: bool = False
+    has_custom_options: bool = False
+    allow_photo_upload: bool = False
+    allow_size_variants: bool = False
+    size_variants: List[dict] = Field(default_factory=list)
+    allow_quantity: bool = True
 
 class ProductCreate(ProductBase):
     pass
@@ -70,6 +75,11 @@ class ProductUpdate(BaseModel):
     best_seller: Optional[bool] = None
     published: Optional[bool] = None
     pinned_to_top: Optional[bool] = None
+    has_custom_options: Optional[bool] = None
+    allow_photo_upload: Optional[bool] = None
+    allow_size_variants: Optional[bool] = None
+    size_variants: Optional[List[dict]] = None
+    allow_quantity: Optional[bool] = None
 
 class Product(ProductBase):
     id: str = Field(alias="_id")
@@ -132,6 +142,8 @@ class OrderItemInput(BaseModel):
     title: str
     price: float
     thumbnail: Optional[str] = None
+    custom_photo: Optional[str] = None
+    selected_size: Optional[str] = None
 
     @field_validator('title', mode='before')
     @classmethod
