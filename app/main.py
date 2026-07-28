@@ -5,6 +5,7 @@ from typing import List, Optional
 from contextlib import asynccontextmanager
 import os
 import shutil
+import base64
 import asyncio
 import sys
 import logging
@@ -173,10 +174,11 @@ async def get_current_admin_user(
 
 @app.post("/api/upload")
 async def upload_image(file: UploadFile = File(...), current_admin: dict = Depends(get_current_admin_user)):
-    file_path = os.path.join(UPLOAD_DIR, file.filename)
-    with open(file_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
-    return {"url": f"/images/products/{file.filename}"}
+    contents = await file.read()
+    encoded = base64.b64encode(contents).decode('utf-8')
+    mime_type = file.content_type or 'image/jpeg'
+    data_url = f"data:{mime_type};base64,{encoded}"
+    return {"url": data_url}
 
 @app.get("/api/products", response_model=List[Product])
 async def list_products(
