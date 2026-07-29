@@ -180,7 +180,7 @@ async def upload_image(file: UploadFile = File(...), current_admin: dict = Depen
     data_url = f"data:{mime_type};base64,{encoded}"
     return {"url": data_url}
 
-@app.get("/api/products", response_model=List[Product])
+@app.get("/api/products")
 async def list_products(
     category: Optional[str] = None,
     tag: Optional[str] = None,
