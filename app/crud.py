@@ -52,7 +52,7 @@ async def get_products(
             {"tags": {"$regex": search, "$options": "i"}}
         ]
 
-    cursor = db.products.find(query).sort([("pinned_to_top", -1), ("created_at", -1)]).skip(skip).limit(limit)
+    cursor = db.products.find(query, {"description": 0}).sort([("pinned_to_top", -1), ("created_at", -1)]).skip(skip).limit(limit)
     products = []
     async for product in cursor:
         products.append(helper_product(product))
