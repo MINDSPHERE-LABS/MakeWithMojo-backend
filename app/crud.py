@@ -43,11 +43,13 @@ async def get_products(
         query["best_seller"] = best_seller
 
     if search:
-        # Simple case-insensitive search on title and description
+        # Case-insensitive search on title, short_description, description, category, and tags
         query["$or"] = [
             {"title": {"$regex": search, "$options": "i"}},
             {"short_description": {"$regex": search, "$options": "i"}},
-            {"description": {"$regex": search, "$options": "i"}}
+            {"description": {"$regex": search, "$options": "i"}},
+            {"category": {"$regex": search, "$options": "i"}},
+            {"tags": {"$regex": search, "$options": "i"}}
         ]
 
     cursor = db.products.find(query).sort([("pinned_to_top", -1), ("created_at", -1)]).skip(skip).limit(limit)
