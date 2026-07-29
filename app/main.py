@@ -492,7 +492,7 @@ async def create_payment_link_endpoint(payload: PaymentLinkCreateInput, current_
     return res
 
 @app.post("/api/payment/verify-link")
-async def verify_payment_link_endpoint(payload: PaymentLinkVerifyInput, current_user: dict = Depends(get_current_user)):
+async def verify_payment_link_endpoint(payload: PaymentLinkVerifyInput, background_tasks: BackgroundTasks, current_user: dict = Depends(get_current_user)):
     valid = razorpay_service.verify_payment_link_signature(
         payload.razorpay_payment_link_id,
         payload.razorpay_payment_link_reference_id,
@@ -507,17 +507,25 @@ async def verify_payment_link_endpoint(payload: PaymentLinkVerifyInput, current_
         )
 
     if payload.razorpay_payment_link_status == "paid":
-        await crud.update_order_payment_status(
+        updated_order = await crud.update_order_payment_status(
             identifier=payload.razorpay_payment_link_reference_id,
             payment_status="paid",
             order_status="Processing",
             razorpay_payment_id=payload.razorpay_payment_id
         )
+        if updated_order and updated_order.get("phone"):
+            background_tasks.add_task(
+                whatsapp_service.send_order_confirmation_message,
+                phone=updated_order.get("phone", ""),
+                name=updated_order.get("name", "Customer"),
+                order_id=updated_order.get("order_id", payload.razorpay_payment_link_reference_id),
+                grand_total=float(updated_order.get("grand_total", 0.0))
+            )
 
     return {"success": True, "message": "Razorpay payment link signature verified successfully"}
 
 @app.post("/api/payment/webhook")
-async def razorpay_webhook(request: Request):
+async def razorpay_webhook(request: Request, background_tasks: BackgroundTasks):
     raw_body = await request.body()
     signature = request.headers.get("X-Razorpay-Signature", "")
 
@@ -566,6 +574,14 @@ async def razorpay_webhook(request: Request):
             )
             if updated_order:
                 print(f"[RAZORPAY WEBHOOK] Order successfully marked as PAID for identifier: {candidate}")
+                if updated_order.get("phone"):
+                    background_tasks.add_task(
+                        whatsapp_service.send_order_confirmation_message,
+                        phone=updated_order.get("phone", ""),
+                        name=updated_order.get("name", "Customer"),
+                        order_id=updated_order.get("order_id", candidate),
+                        grand_total=float(updated_order.get("grand_total", 0.0))
+                    )
                 break
 
         if not updated_order:
@@ -615,6 +631,14 @@ async def razorpay_webhook(request: Request):
             )
             if updated_order:
                 print(f"[RAZORPAY WEBHOOK] Payment Link Order marked as PAID for ref: {reference_id}")
+                if updated_order.get("phone"):
+                    background_tasks.add_task(
+                        whatsapp_service.send_order_confirmation_message,
+                        phone=updated_order.get("phone", ""),
+                        name=updated_order.get("name", "Customer"),
+                        order_id=updated_order.get("order_id", reference_id),
+                        grand_total=float(updated_order.get("grand_total", 0.0))
+                    )
 
     elif event_type in ("payment_link.cancelled", "payment_link.expired"):
         link_entity = payload.get("payment_link", {}).get("entity", {})
@@ -630,8 +654,16 @@ async def razorpay_webhook(request: Request):
     return {"status": "ok", "event": event_type}
 
 @app.post("/api/orders")
-async def create_new_order(payload: OrderCreateInput, current_user: dict = Depends(get_current_user)):
+async def create_new_order(payload: OrderCreateInput, background_tasks: BackgroundTasks, current_user: dict = Depends(get_current_user)):
     order = await crud.create_order(current_user["_id"], payload)
+    if order and payload.payment_status in ("paid", "pending"):
+        background_tasks.add_task(
+            whatsapp_service.send_order_confirmation_message,
+            phone=payload.phone,
+            name=payload.name,
+            order_id=payload.order_id,
+            grand_total=payload.grand_total
+        )
     return order
 
 @app.get("/api/orders")
@@ -724,6 +756,34 @@ async def update_admin_order_status(order_id: str, payload: OrderStatusUpdateInp
             print(f"[WHATSAPP ERROR] Failed to send tracking message: {e}")
 
     return {"success": True, "order": updated}
+
+
+@app.post("/api/admin/orders/{order_id}/resend-confirmation")
+async def resend_order_confirmation(order_id: str, current_admin: dict = Depends(get_current_admin_user)):
+    order = await crud.get_order_by_identifier(order_id)
+    if not order:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Order with ID '{order_id}' not found"
+        )
+    
+    phone = order.get("phone", "")
+    name = order.get("name", "Customer")
+    grand_total = float(order.get("grand_total", 0.0))
+    
+    if not phone:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Order does not contain a valid mobile phone number"
+        )
+        
+    res = await whatsapp_service.send_order_confirmation_message(
+        phone=phone,
+        name=name,
+        order_id=order_id,
+        grand_total=grand_total
+    )
+    return {"success": True, "whatsapp_res": res}
 
 
 @app.get("/api/settings")

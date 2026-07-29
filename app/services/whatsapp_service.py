@@ -285,6 +285,93 @@ class WhatsAppService:
             logger.exception("Failed to send WhatsApp tracking message")
             return {"sent": False, "error": str(e)}
 
+    async def send_order_confirmation_message(self, phone: str, name: str, order_id: str, grand_total: float) -> Dict[str, Any]:
+        """
+        Sends order confirmation notification to customer via Meta WhatsApp API using template 'order_confirmation_v1'.
+        Template parameters:
+        {{1}} -> Customer Name
+        {{2}} -> Order ID
+        {{3}} -> Grand Total (e.g. 999 or 2300)
+        """
+        clean_phone = "".join(filter(str.isdigit, phone))
+        if not clean_phone.startswith("91") and len(clean_phone) == 10:
+            clean_phone = "91" + clean_phone
+
+        formatted_total = f"{int(grand_total) if float(grand_total).is_integer() else f'{float(grand_total):.2f}'}"
+        customer_name = (name or "").strip() or "Customer"
+
+        if not self.phone_number_id or not self.access_token:
+            logger.warning(f"WhatsApp API credentials missing. Logged order confirmation for {clean_phone}.")
+            return {
+                "sent": False,
+                "reason": "Missing WhatsApp credentials",
+                "phone": clean_phone
+            }
+
+        url = f"https://graph.facebook.com/{self.api_version}/{self.phone_number_id}/messages"
+        headers = {
+            "Authorization": f"Bearer {self.access_token}",
+            "Content-Type": "application/json"
+        }
+
+        # Payload matching approved Meta template 'order_confirmation_v1'
+        payload = {
+            "messaging_product": "whatsapp",
+            "to": clean_phone,
+            "type": "template",
+            "template": {
+                "name": "order_confirmation_v1",
+                "language": { "code": self.template_lang },
+                "components": [
+                    {
+                        "type": "body",
+                        "parameters": [
+                            { "type": "text", "text": customer_name },
+                            { "type": "text", "text": str(order_id) },
+                            { "type": "text", "text": formatted_total }
+                        ]
+                    }
+                ]
+            }
+        }
+
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.post(url, headers=headers, json=payload)
+                resp_data = response.json()
+                
+                # Language fallback retry if 'en' / 'en_US' mismatch
+                if response.status_code >= 400 and (resp_data.get("error", {}).get("code") in (131047, 131058, 132001) or "translation" in response.text.lower()):
+                    alt_lang = "en_US" if self.template_lang == "en" else "en"
+                    logger.warning(f"[WHATSAPP ORDER CONFIRMATION] Retrying with language code '{alt_lang}'...")
+                    retry_payload = {
+                        "messaging_product": "whatsapp",
+                        "to": clean_phone,
+                        "type": "template",
+                        "template": {
+                            "name": "order_confirmation_v1",
+                            "language": { "code": alt_lang },
+                            "components": payload["template"]["components"]
+                        }
+                    }
+                    response = await client.post(url, headers=headers, json=retry_payload)
+                    resp_data = response.json()
+
+                if response.status_code in (200, 201):
+                    logger.info(f"WhatsApp order confirmation sent to {clean_phone} for order {order_id}")
+                    print(f"[WHATSAPP ORDER CONFIRMATION SUCCESS] Delivered to {clean_phone} for order #{order_id}!")
+                    return {"sent": True, "meta_response": resp_data}
+                else:
+                    err_detail = resp_data.get("error", {})
+                    err_msg = err_detail.get("message", f"HTTP {response.status_code}")
+                    err_code = err_detail.get("code")
+                    logger.error(f"WhatsApp Order Confirmation API error ({response.status_code}, code {err_code}): {err_msg}")
+                    print(f"[WHATSAPP ORDER CONFIRMATION ERROR] Code {err_code} ({response.status_code}): {err_msg}")
+                    return {"sent": False, "status_code": response.status_code, "meta_response": resp_data}
+        except Exception as e:
+            logger.exception("Failed to send WhatsApp order confirmation message")
+            return {"sent": False, "error": str(e)}
+
 whatsapp_service = WhatsAppService()
 
 
