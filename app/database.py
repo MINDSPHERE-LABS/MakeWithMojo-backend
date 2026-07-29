@@ -21,36 +21,21 @@ async def connect_to_mongo():
     )
     db_helper.db = db_helper.client[settings.DATABASE_NAME]
     try:
-        # 1. Clean up existing duplicate order entries in database
-        pipeline = [
-            {"$group": {"_id": "$order_id", "ids": {"$push": "$_id"}, "count": {"$sum": 1}}},
-            {"$match": {"count": {"$gt": 1}}}
-        ]
-        duplicates = await db_helper.db.orders.aggregate(pipeline).to_list(length=None)
-        
-        delete_ids = []
-        for doc in duplicates:
-            delete_ids.extend(doc["ids"][1:])
-            
-        if delete_ids:
-            logger.info(f"Found existing duplicates. Cleaning up {len(delete_ids)} duplicate order entries...")
-            await db_helper.db.orders.delete_many({"_id": {"$in": delete_ids}})
-            logger.info("Duplicate orders cleanup completed.")
-            
-        # 2. Build indexes for max performance & fast queries
+        # Build indexes for max performance & ultra-fast queries (under 10ms)
         # Orders Collection Indexes
-        await db_helper.db.orders.create_index("order_id", unique=True)
+        await db_helper.db.orders.create_index("order_id", unique=True, sparse=True)
         await db_helper.db.orders.create_index("payment_status")
         await db_helper.db.orders.create_index("phone")
         await db_helper.db.orders.create_index("user_id")
 
         # Products Collection Indexes
-        await db_helper.db.products.create_index("slug", unique=True)
+        await db_helper.db.products.create_index("slug", unique=True, sparse=True)
         await db_helper.db.products.create_index("category")
+        await db_helper.db.products.create_index([("published", 1), ("pinned_to_top", -1), ("created_at", -1)])
 
         # Users Collection Indexes
-        await db_helper.db.users.create_index("phone", unique=True)
-        await db_helper.db.users.create_index("session_token")
+        await db_helper.db.users.create_index("phone", unique=True, sparse=True)
+        await db_helper.db.users.create_index("session_token", sparse=True)
 
         # OTPs TTL Index (Automatic Expiration)
         await db_helper.db.otps.create_index("expires_at", expireAfterSeconds=0)
