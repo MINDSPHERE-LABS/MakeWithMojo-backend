@@ -70,6 +70,8 @@ if not ALLOWED_ORIGINS:
         "http://127.0.0.1:5173",
     ]
 
+from fastapi.middleware.gzip import GZipMiddleware
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
@@ -77,6 +79,9 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD"],
     allow_headers=["Content-Type", "Authorization", "X-Admin-Key", "X-Requested-With"],
 )
+
+# Compress all responses larger than 500 bytes (reduces JSON bandwidth by ~85%)
+app.add_middleware(GZipMiddleware, minimum_size=500)
 
 # --- HTTP Security Headers Middleware ---
 @app.middleware("http")
