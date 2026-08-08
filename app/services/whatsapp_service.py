@@ -316,6 +316,8 @@ class WhatsAppService:
         }
 
         # Payload matching approved Meta template 'order_confirmation_v1'
+        # Template body: Order Placed: Hi, Your MakewithMojo order (ID: {{1}} ) of ₹ {{2}} is confirmed!
+        # Parameters: {{1}} -> Order ID, {{2}} -> Grand Total
         payload = {
             "messaging_product": "whatsapp",
             "to": clean_phone,
@@ -327,7 +329,6 @@ class WhatsAppService:
                     {
                         "type": "body",
                         "parameters": [
-                            { "type": "text", "text": customer_name },
                             { "type": "text", "text": str(order_id) },
                             { "type": "text", "text": formatted_total }
                         ]
