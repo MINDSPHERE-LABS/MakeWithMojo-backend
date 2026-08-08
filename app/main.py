@@ -32,11 +32,7 @@ from app import crud
 from app.auth.routes import router as auth_router
 from app.services.razorpay_service import razorpay_service
 from app.services.whatsapp_service import whatsapp_service
-from app.services.google_sheets_service import google_sheets_service
 from app.auth.rate_limiter import rate_limiter, get_client_ip
-
-class GoogleSheetsSyncInput(BaseModel):
-    sheet_id: Optional[str] = None
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
