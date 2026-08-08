@@ -434,7 +434,7 @@ async def create_razorpay_order(payload: PaymentOrderCreateInput, current_user: 
     return res
 
 @app.post("/api/payment/verify")
-async def verify_razorpay_payment(payload: PaymentVerifyInput, current_user: dict = Depends(get_current_user)):
+async def verify_razorpay_payment(payload: PaymentVerifyInput, background_tasks: BackgroundTasks, current_user: dict = Depends(get_current_user)):
     valid = razorpay_service.verify_payment_signature(
         payload.razorpay_order_id,
         payload.razorpay_payment_id,
@@ -445,7 +445,23 @@ async def verify_razorpay_payment(payload: PaymentVerifyInput, current_user: dic
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid Razorpay payment signature verification failed"
         )
-    return {"success": True, "message": "Razorpay payment verified successfully"}
+
+    updated_order = await crud.update_order_payment_status(
+        identifier=payload.razorpay_order_id,
+        payment_status="paid",
+        order_status="Processing",
+        razorpay_payment_id=payload.razorpay_payment_id
+    )
+    if updated_order and updated_order.get("phone"):
+        background_tasks.add_task(
+            whatsapp_service.send_order_confirmation_message,
+            phone=updated_order.get("phone", ""),
+            name=updated_order.get("name", "Customer"),
+            order_id=updated_order.get("order_id", payload.razorpay_order_id),
+            grand_total=float(updated_order.get("grand_total", 0.0))
+        )
+
+    return {"success": True, "message": "Razorpay payment verified successfully", "order": updated_order}
 
 @app.post("/api/payment/create-link")
 async def create_payment_link_endpoint(payload: PaymentLinkCreateInput, current_user: dict = Depends(get_current_user)):

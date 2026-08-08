@@ -12,6 +12,7 @@ class WhatsAppService:
         self.access_token = os.getenv("WHATSAPP_ACCESS_TOKEN", "")
         self.api_version = os.getenv("WHATSAPP_API_VERSION", "v21.0")
         self.template_name = os.getenv("WHATSAPP_TEMPLATE_NAME", "makewithmojov3")
+        self.order_template_name = os.getenv("WHATSAPP_ORDER_TEMPLATE_NAME", "order_confirmation_v1")
         self.template_lang = os.getenv("WHATSAPP_TEMPLATE_LANG", "en")
         self.mode = os.getenv("WHATSAPP_MESSAGE_MODE", "template").lower()
 
@@ -320,7 +321,7 @@ class WhatsAppService:
             "to": clean_phone,
             "type": "template",
             "template": {
-                "name": "order_confirmation_v1",
+                "name": self.order_template_name,
                 "language": { "code": self.template_lang },
                 "components": [
                     {
@@ -349,7 +350,7 @@ class WhatsAppService:
                         "to": clean_phone,
                         "type": "template",
                         "template": {
-                            "name": "order_confirmation_v1",
+                            "name": self.order_template_name,
                             "language": { "code": alt_lang },
                             "components": payload["template"]["components"]
                         }
