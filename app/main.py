@@ -32,6 +32,7 @@ from app import crud
 from app.auth.routes import router as auth_router
 from app.services.razorpay_service import razorpay_service
 from app.services.whatsapp_service import whatsapp_service
+from app.services.r2_service import r2_service
 from app.auth.rate_limiter import rate_limiter, get_client_ip
 
 @asynccontextmanager
@@ -178,8 +179,17 @@ async def get_current_admin_user(
 @app.post("/api/upload")
 async def upload_image(file: UploadFile = File(...), current_admin: dict = Depends(get_current_admin_user)):
     contents = await file.read()
-    encoded = base64.b64encode(contents).decode('utf-8')
     mime_type = file.content_type or 'image/jpeg'
+    filename = file.filename or 'upload.jpg'
+
+    # Try uploading to Cloudflare R2 first
+    if r2_service.is_configured():
+        r2_url = r2_service.upload_file(contents, filename, mime_type)
+        if r2_url:
+            return {"url": r2_url}
+
+    # Fallback to base64 if R2 is not configured
+    encoded = base64.b64encode(contents).decode('utf-8')
     data_url = f"data:{mime_type};base64,{encoded}"
     return {"url": data_url}
 
