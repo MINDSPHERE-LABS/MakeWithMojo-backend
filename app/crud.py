@@ -4,6 +4,13 @@ from typing import List, Optional, Dict, Any
 from app.models import ProductCreate, ProductUpdate, StoreSettings
 from app.database import get_database
 
+def dump_model(model_obj, **kwargs):
+    if hasattr(model_obj, "model_dump"):
+        return model_obj.model_dump(**kwargs)
+    elif hasattr(model_obj, "dict"):
+        return model_obj.dict(**kwargs)
+    return dict(model_obj)
+
 def helper_product(product) -> dict:
     if not product:
         return {}
@@ -72,7 +79,7 @@ async def get_product_by_slug(slug: str) -> Optional[dict]:
 
 async def create_product(product_data: ProductCreate) -> dict:
     db = get_database()
-    product_dict = product_data.model_dump()
+    product_dict = dump_model(product_data)
     product_dict["created_at"] = datetime.utcnow()
     product_dict["updated_at"] = datetime.utcnow()
     
@@ -91,7 +98,8 @@ async def update_product(product_id: str, product_data: ProductUpdate) -> Option
     if not ObjectId.is_valid(product_id):
         return None
         
-    update_dict = {k: v for k, v in product_data.model_dump(exclude_unset=True).items()}
+    update_dict = {k: v for k, v in dump_model(product_data, exclude_unset=True).items()}
+
     if not update_dict:
         return await get_product_by_id(product_id)
         
@@ -173,7 +181,7 @@ async def register_user(user_data: UserRegister) -> Optional[dict]:
     existing = await get_user_by_email(user_data.email)
     if existing:
         return None
-    user_dict = user_data.model_dump()
+    user_dict = dump_model(user_data)
     user_dict["created_at"] = datetime.utcnow()
     result = await db.users.insert_one(user_dict)
     new_user = await db.users.find_one({"_id": result.inserted_id})
@@ -316,7 +324,7 @@ def helper_order(order) -> dict:
 
 async def create_order(user_id: str, order_data: OrderCreateInput) -> dict:
     db = get_database()
-    order_dict = order_data.model_dump()
+    order_dict = dump_model(order_data)
     order_dict["user_id"] = user_id
 
     # Check if order with this order_id already exists (pre-created pending order)
@@ -462,7 +470,7 @@ async def get_store_settings() -> dict:
 
 async def update_store_settings(settings_data: StoreSettings) -> dict:
     db = get_database()
-    update_dict = settings_data.model_dump()
+    update_dict = dump_model(settings_data)
     update_dict["updated_at"] = datetime.utcnow()
     await db.settings.update_one(
         {},
