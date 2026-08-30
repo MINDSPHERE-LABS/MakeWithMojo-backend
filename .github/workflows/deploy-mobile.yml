@@ -8,10 +8,14 @@ jobs:
     name: Deploy to Android Termux
     runs-on: ubuntu-latest
     steps:
-      - name: Install SSH Utilities
+      - name: Install SSH Utilities & Cloudflare Client
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y sshpass ssh netcat-openbsd
+          
+          echo "📥 Installing cloudflared client on runner for Cloudflare Tunnel SSH..."
+          curl -L --output cloudflared.deb https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
+          sudo dpkg -i cloudflared.deb
 
       - name: Debug Network & SSH Connection
         run: |
@@ -28,7 +32,7 @@ jobs:
           nc -zv -w 10 ${{ secrets.MOBILE_SSH_HOST }} ${{ secrets.MOBILE_SSH_PORT }} || true
           echo "=========================================="
 
-      - name: Execute Remote Deployment via Native SSH
+      - name: Execute Remote Deployment via Cloudflare Tunnel SSH
         env:
           SSH_HOST: ${{ secrets.MOBILE_SSH_HOST }}
           SSH_PORT: ${{ secrets.MOBILE_SSH_PORT }}
@@ -36,41 +40,45 @@ jobs:
           SSH_PASS: ${{ secrets.MOBILE_SSH_PASS }}
         run: |
           echo "=========================================="
-          echo "🚀 Connecting via Native SSH to $SSH_USER@$SSH_HOST:$SSH_PORT..."
+          echo "🚀 Connecting via Cloudflare Tunnel SSH to $SSH_USER@$SSH_HOST..."
           echo "=========================================="
 
-          sshpass -p "$SSH_PASS" ssh -v -o StrictHostKeyChecking=no -o ConnectTimeout=30 -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" << 'EOF'
-            echo "=========================================="
-            echo "🎉 SSH LOGIN SUCCESSFUL! Connected to Termux"
-            echo "=========================================="
-            echo "User: $(whoami)"
-            echo "Path: $(pwd)"
-            echo "System: $(uname -a)"
-            echo "=========================================="
+          sshpass -p "$SSH_PASS" ssh -v \
+            -o StrictHostKeyChecking=no \
+            -o ConnectTimeout=30 \
+            -o "ProxyCommand=cloudflared access ssh --hostname %h" \
+            "$SSH_USER@$SSH_HOST" << 'EOF'
+              echo "=========================================="
+              echo "🎉 SSH LOGIN SUCCESSFUL! Connected to Termux"
+              echo "=========================================="
+              echo "User: $(whoami)"
+              echo "Path: $(pwd)"
+              echo "System: $(uname -a)"
+              echo "=========================================="
 
-            if [ -d "$HOME/MakeWithMojo-backend" ]; then
-              cd "$HOME/MakeWithMojo-backend"
-            elif [ -d "~/MakeWithMojo-backend" ]; then
-              cd ~/MakeWithMojo-backend
-            else
-              echo "Error: MakeWithMojo-backend directory not found!"
-              exit 1
-            fi
+              if [ -d "$HOME/MakeWithMojo-backend" ]; then
+                cd "$HOME/MakeWithMojo-backend"
+              elif [ -d "~/MakeWithMojo-backend" ]; then
+                cd ~/MakeWithMojo-backend
+              else
+                echo "Error: MakeWithMojo-backend directory not found!"
+                exit 1
+              fi
 
-            echo "📥 Pulling latest code..."
-            git checkout mobile-serv
-            git pull origin mobile-serv
+              echo "📥 Pulling latest code..."
+              git checkout mobile-serv
+              git pull origin mobile-serv
 
-            echo "📦 Installing Python dependencies..."
-            pip install -r requirements.txt
+              echo "📦 Installing Python dependencies..."
+              pip install -r requirements.txt
 
-            echo "🔄 Restarting FastAPI Uvicorn Server..."
-            pkill -f "uvicorn app.main:app" || true
-            sleep 2
+              echo "🔄 Restarting FastAPI Uvicorn Server..."
+              pkill -f "uvicorn app.main:app" || true
+              sleep 2
 
-            nohup python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 > server.log 2>&1 &
-            
-            echo "=========================================="
-            echo "✅ Mobile Server Deployment Successfully Completed!"
-            echo "=========================================="
+              nohup python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 > server.log 2>&1 &
+              
+              echo "=========================================="
+              echo "✅ Mobile Server Deployment Successfully Completed!"
+              echo "=========================================="
           EOF
