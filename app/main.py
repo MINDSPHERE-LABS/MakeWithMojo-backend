@@ -33,6 +33,8 @@ from app.auth.routes import router as auth_router
 from app.services.razorpay_service import razorpay_service
 from app.services.whatsapp_service import whatsapp_service
 from app.services.r2_service import r2_service
+from app.services.email_service import email_service
+
 from app.auth.rate_limiter import rate_limiter, get_client_ip
 
 @asynccontextmanager
@@ -693,7 +695,12 @@ async def create_new_order(payload: OrderCreateInput, background_tasks: Backgrou
             order_id=payload.order_id,
             grand_total=payload.grand_total
         )
+        background_tasks.add_task(
+            email_service.send_order_invoice,
+            order=order
+        )
     return order
+
 
 @app.get("/api/orders")
 async def get_my_orders(current_user: dict = Depends(get_current_user)):
