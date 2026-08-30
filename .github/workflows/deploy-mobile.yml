@@ -59,10 +59,11 @@ jobs:
               echo "System info: $(uname -a)"
               echo "=========================================="
 
-              # Fix Android Termux TMPDIR & ANDROID_API_LEVEL for Rust compilation
+              # Fix Android Termux Python 3.14 + Rust environment variables
               mkdir -p ~/tmp
               export TMPDIR=~/tmp
               export ANDROID_API_LEVEL=24
+              export PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1
 
               # Locate project directory
               PROJECT_DIR=""
