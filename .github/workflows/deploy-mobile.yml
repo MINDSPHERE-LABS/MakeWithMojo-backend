@@ -1,7 +1,10 @@
-name: Deploy to Mobile Termux Server (Manual)
+name: Deploy to Mobile Termux Server
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - mobile-serv
 
 jobs:
   deploy:
@@ -51,23 +54,39 @@ jobs:
               echo "=========================================="
               echo "🎉 SSH LOGIN SUCCESSFUL! Connected to Termux"
               echo "=========================================="
-              echo "User: $(whoami)"
-              echo "Path: $(pwd)"
-              echo "System: $(uname -a)"
+              echo "Logged in as user: $(whoami)"
+              echo "Initial directory: $(pwd)"
+              echo "System info: $(uname -a)"
               echo "=========================================="
 
+              # Locate project directory
+              PROJECT_DIR=""
               if [ -d "$HOME/MakeWithMojo-backend" ]; then
-                cd "$HOME/MakeWithMojo-backend"
-              elif [ -d "~/MakeWithMojo-backend" ]; then
-                cd ~/MakeWithMojo-backend
-              else
-                echo "Error: MakeWithMojo-backend directory not found!"
+                PROJECT_DIR="$HOME/MakeWithMojo-backend"
+              elif [ -d "$HOME/makewithmojo-backend" ]; then
+                PROJECT_DIR="$HOME/makewithmojo-backend"
+              elif [ -d "MakeWithMojo-backend" ]; then
+                PROJECT_DIR="$(pwd)/MakeWithMojo-backend"
+              fi
+
+              if [ -z "$PROJECT_DIR" ]; then
+                echo "❌ Error: MakeWithMojo-backend directory not found in $HOME or $(pwd)!"
+                echo "Available folders in $HOME:"
+                ls -la $HOME
                 exit 1
               fi
 
-              echo "📥 Pulling latest code..."
-              git checkout mobile-serv
-              git pull origin mobile-serv
+              echo "📂 Navigating to project directory: $PROJECT_DIR"
+              cd "$PROJECT_DIR"
+              echo "Current Directory: $(pwd)"
+
+              echo "📥 Fetching and syncing code from GitHub (mobile-serv)..."
+              git fetch origin mobile-serv
+              git checkout mobile-serv || git checkout -b mobile-serv origin/mobile-serv
+              git reset --hard origin/mobile-serv
+
+              echo "📌 Current Active Commit on Mobile Server:"
+              git log -n 1 --oneline
 
               echo "📦 Installing Python dependencies..."
               pip install -r requirements.txt
@@ -81,7 +100,7 @@ jobs:
               else
                 nohup python3 -m uvicorn app.main:app --host 0.0.0.0 --port 8000 > server.log 2>&1 &
               fi
-              
+
               echo "=========================================="
               echo "✅ Mobile Server Deployment Successfully Completed!"
               echo "=========================================="
