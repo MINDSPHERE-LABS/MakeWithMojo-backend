@@ -11,7 +11,12 @@ jobs:
     name: Deploy to Android Termux
     runs-on: ubuntu-latest
     steps:
-      - name: Debug SSH Host & Network Connectivity
+      - name: Install SSH Utilities
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y sshpass ssh netcat-openbsd
+
+      - name: Debug Network & SSH Connection
         run: |
           echo "=========================================="
           echo "🔍 DIAGNOSTIC STEP: Checking Network & DNS"
@@ -19,30 +24,31 @@ jobs:
           echo "Target Host: ${{ secrets.MOBILE_SSH_HOST }}"
           echo "Target Port: ${{ secrets.MOBILE_SSH_PORT }}"
           
-          echo "1. Resolving DNS for target host..."
+          echo "1. Resolving DNS..."
           nslookup ${{ secrets.MOBILE_SSH_HOST }} || true
 
-          echo "2. Testing TCP Port Connection..."
+          echo "2. Testing Port Connection..."
           nc -zv -w 10 ${{ secrets.MOBILE_SSH_HOST }} ${{ secrets.MOBILE_SSH_PORT }} || true
           echo "=========================================="
 
-      - name: Executing remote SSH commands for deployment
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.MOBILE_SSH_HOST }}
-          port: ${{ secrets.MOBILE_SSH_PORT }}
-          username: ${{ secrets.MOBILE_SSH_USER }}
-          password: ${{ secrets.MOBILE_SSH_PASS }}
-          timeout: 60s
-          command_timeout: 10m
-          debug: true
-          script: |
+      - name: Execute Remote Deployment via Native SSH
+        env:
+          SSH_HOST: ${{ secrets.MOBILE_SSH_HOST }}
+          SSH_PORT: ${{ secrets.MOBILE_SSH_PORT }}
+          SSH_USER: ${{ secrets.MOBILE_SSH_USER }}
+          SSH_PASS: ${{ secrets.MOBILE_SSH_PASS }}
+        run: |
+          echo "=========================================="
+          echo "🚀 Connecting via Native SSH to $SSH_USER@$SSH_HOST:$SSH_PORT..."
+          echo "=========================================="
+
+          sshpass -p "$SSH_PASS" ssh -v -o StrictHostKeyChecking=no -o ConnectTimeout=30 -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" << 'EOF'
             echo "=========================================="
-            echo "🎉 SSH LOGIN SUCCESSFUL! Connected to Mobile Termux Server"
+            echo "🎉 SSH LOGIN SUCCESSFUL! Connected to Termux"
             echo "=========================================="
-            echo "Logged in as: $(whoami)"
-            echo "Current Working Directory: $(pwd)"
-            echo "System Info: $(uname -a)"
+            echo "User: $(whoami)"
+            echo "Path: $(pwd)"
+            echo "System: $(uname -a)"
             echo "=========================================="
 
             if [ -d "$HOME/MakeWithMojo-backend" ]; then
@@ -70,3 +76,4 @@ jobs:
             echo "=========================================="
             echo "✅ Mobile Server Deployment Successfully Completed!"
             echo "=========================================="
+          EOF
