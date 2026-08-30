@@ -1,4 +1,8 @@
-from pydantic import BaseModel, Field, field_validator
+try:
+    from pydantic import BaseModel, Field, field_validator
+except ImportError:
+    from pydantic import BaseModel, Field, validator as field_validator
+
 from typing import List, Optional
 from datetime import datetime
 
