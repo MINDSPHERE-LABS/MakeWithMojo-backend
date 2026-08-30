@@ -1,6 +1,7 @@
 name: Deploy to Mobile Termux Server
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - mobile-serv
@@ -19,10 +20,9 @@ jobs:
           password: ${{ secrets.MOBILE_SSH_PASS }}
           script: |
             echo "=========================================="
-            echo "🚀 Starting Automated Deployment on Mobile Termux Server"
+            echo "🚀 Starting Deployment on Mobile Termux Server"
             echo "=========================================="
 
-            # Navigate to project directory
             if [ -d "$HOME/MakeWithMojo-backend" ]; then
               cd "$HOME/MakeWithMojo-backend"
             elif [ -d "~/MakeWithMojo-backend" ]; then
@@ -32,7 +32,7 @@ jobs:
               exit 1
             fi
 
-            echo "📥 Pulling latest code from mobile-serv branch..."
+            echo "📥 Pulling latest code..."
             git checkout mobile-serv
             git pull origin mobile-serv
 
