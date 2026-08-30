@@ -139,6 +139,15 @@ def sanitize_string(val: Optional[str]) -> Optional[str]:
         return val
     return html.escape(val.strip())
 
+try:
+    from pydantic import field_validator
+    def validate_before(*fields):
+        return field_validator(*fields, mode='before')
+except ImportError:
+    from pydantic import validator
+    def validate_before(*fields):
+        return validator(*fields, pre=True, allow_reuse=True)
+
 class OrderItemInput(BaseModel):
     product_id: Optional[str] = None
     title: str
@@ -147,7 +156,7 @@ class OrderItemInput(BaseModel):
     custom_photo: Optional[str] = None
     selected_size: Optional[str] = None
 
-    @field_validator('title', mode='before')
+    @validate_before('title')
     @classmethod
     def sanitize_title(cls, v):
         return sanitize_string(v)
@@ -167,7 +176,7 @@ class OrderCreateInput(BaseModel):
     razorpay_payment_id: Optional[str] = None
     failure_reason: Optional[str] = None
 
-    @field_validator('name', 'address', 'email', 'order_id', mode='before')
+    @validate_before('name', 'address', 'email', 'order_id')
     @classmethod
     def sanitize_order_fields(cls, v):
         return sanitize_string(v)
