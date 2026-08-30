@@ -94,8 +94,9 @@ jobs:
               echo "📦 Installing Python dependencies..."
               python3 -m pip install -r requirements.txt
 
-              echo "🔄 Restarting FastAPI Uvicorn Server..."
-              pkill -f "uvicorn" || true
+              echo "🔄 Freeing Port 8000 and Restarting FastAPI Uvicorn Server..."
+              fuser -k 8000/tcp || true
+              pkill -9 -f "uvicorn" || true
               sleep 2
 
               echo "🚀 Starting Uvicorn server background process..."
@@ -104,7 +105,7 @@ jobs:
               sleep 3
               echo "=========================================="
               echo "🔍 Server Log Verification:"
-              tail -n 15 server.log || true
+              tail -n 20 server.log || true
               echo "=========================================="
 
               echo "✅ Mobile Server Deployment Successfully Completed!"
