@@ -11,6 +11,21 @@ jobs:
     name: Deploy to Android Termux
     runs-on: ubuntu-latest
     steps:
+      - name: Debug SSH Host & Network Connectivity
+        run: |
+          echo "=========================================="
+          echo "🔍 DIAGNOSTIC STEP: Checking Network & DNS"
+          echo "=========================================="
+          echo "Target Host: ${{ secrets.MOBILE_SSH_HOST }}"
+          echo "Target Port: ${{ secrets.MOBILE_SSH_PORT }}"
+          
+          echo "1. Resolving DNS for target host..."
+          nslookup ${{ secrets.MOBILE_SSH_HOST }} || true
+
+          echo "2. Testing TCP Port Connection..."
+          nc -zv -w 10 ${{ secrets.MOBILE_SSH_HOST }} ${{ secrets.MOBILE_SSH_PORT }} || true
+          echo "=========================================="
+
       - name: Executing remote SSH commands for deployment
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -18,9 +33,16 @@ jobs:
           port: ${{ secrets.MOBILE_SSH_PORT }}
           username: ${{ secrets.MOBILE_SSH_USER }}
           password: ${{ secrets.MOBILE_SSH_PASS }}
+          timeout: 60s
+          command_timeout: 10m
+          debug: true
           script: |
             echo "=========================================="
-            echo "🚀 Starting Deployment on Mobile Termux Server"
+            echo "🎉 SSH LOGIN SUCCESSFUL! Connected to Mobile Termux Server"
+            echo "=========================================="
+            echo "Logged in as: $(whoami)"
+            echo "Current Working Directory: $(pwd)"
+            echo "System Info: $(uname -a)"
             echo "=========================================="
 
             if [ -d "$HOME/MakeWithMojo-backend" ]; then
