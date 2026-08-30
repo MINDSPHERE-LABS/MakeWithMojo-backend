@@ -59,6 +59,10 @@ jobs:
               echo "System info: $(uname -a)"
               echo "=========================================="
 
+              # Fix Android Termux TMPDIR for Rust compilation
+              mkdir -p "$HOME/tmp"
+              export TMPDIR="$HOME/tmp"
+
               # Locate project directory
               PROJECT_DIR=""
               if [ -d "$HOME/MakeWithMojo-backend" ]; then
@@ -88,7 +92,7 @@ jobs:
               echo "📌 Current Active Commit on Mobile Server:"
               git log -n 1 --oneline
 
-              echo "📦 Installing Python dependencies (binary wheels prefered)..."
+              echo "📦 Installing Python dependencies..."
               python3 -m pip install --prefer-binary -r requirements.txt
 
               echo "🔄 Restarting FastAPI Uvicorn Server..."
