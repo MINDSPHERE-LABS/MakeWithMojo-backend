@@ -60,8 +60,8 @@ jobs:
               echo "=========================================="
 
               # Fix Android Termux TMPDIR for Rust compilation
-              mkdir -p "$HOME/tmp"
-              export TMPDIR="$HOME/tmp"
+              mkdir -p ~/tmp
+              export TMPDIR=~/tmp
 
               # Locate project directory
               PROJECT_DIR=""
