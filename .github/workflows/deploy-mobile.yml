@@ -76,10 +76,14 @@ jobs:
               pip install -r requirements.txt
 
               echo "🔄 Restarting FastAPI Uvicorn Server..."
-              pkill -f "uvicorn app.main:app" || true
+              pkill -f "uvicorn" || true
               sleep 2
 
-              nohup python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 > server.log 2>&1 &
+              if command -v uvicorn >/dev/null 2>&1; then
+                nohup uvicorn app.main:app --host 0.0.0.0 --port 8000 > server.log 2>&1 &
+              else
+                nohup python3 -m uvicorn app.main:app --host 0.0.0.0 --port 8000 > server.log 2>&1 &
+              fi
               
               echo "=========================================="
               echo "✅ Mobile Server Deployment Successfully Completed!"
