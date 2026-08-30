@@ -1,4 +1,5 @@
 import os
+import time
 import smtplib
 import logging
 from email.message import EmailMessage
@@ -49,6 +50,27 @@ class EmailService:
             logger.warning("[EMAIL SERVICE] SMTP_PASSWORD or SMTP_USERNAME is missing in .env")
             return False
         return True
+
+    def generate_plain_text(self, order: Dict[str, Any]) -> str:
+        order_id = order.get("order_id") or order.get("_id") or "N/A"
+        customer_name = order.get("name") or "Valued Customer"
+        grand_total = float(order.get("grand_total") or 0.0)
+        items = order.get("items") or []
+
+        text = f"Hi {customer_name},\n\n"
+        text += f"Thank you for your order #{order_id} at MakeWithMojo!\n\n"
+        text += "ORDER SUMMARY:\n"
+        for item in items:
+            title = item.get("title") or "Item"
+            qty = item.get("quantity") or 1
+            price = float(item.get("price") or 0.0)
+            text += f"- {title} x{qty} @ Rs.{price:,.2f}\n"
+        text += f"\nGrand Total: Rs.{grand_total:,.2f}\n\n"
+        text += "Shipping Address:\n"
+        text += f"{order.get('address', '')}\n\n"
+        text += "If you have any questions, reply to this email or contact us at infomakewithmojo@gmail.com.\n\n"
+        text += "Best regards,\nMakeWithMojo Team"
+        return text
 
     def generate_invoice_html(self, order: Dict[str, Any]) -> str:
         order_id = order.get("order_id") or order.get("_id") or "N/A"
@@ -240,9 +262,15 @@ class EmailService:
             msg["Subject"] = subject
             msg["From"] = f"{self.sender_name} <{self.sender_email}>"
             msg["To"] = recipient_email.strip()
+            msg["Reply-To"] = self.sender_email
+            msg["Message-ID"] = f"<{order_id}.{int(time.time())}@makewithmojo.com>"
+            msg["X-Mailer"] = "MakeWithMojo Store Engine"
+            msg["Auto-Submitted"] = "auto-generated"
 
+            plain_body = self.generate_plain_text(order)
             html_body = self.generate_invoice_html(order)
-            msg.set_content(f"Thank you for your order #{order_id}! Please view this email in an HTML-compatible email client.")
+
+            msg.set_content(plain_body)
             msg.add_alternative(html_body, subtype="html")
 
             logger.info(f"[EMAIL SERVICE] Connecting to {self.smtp_server}:{self.smtp_port} to send invoice to {recipient_email}...")
