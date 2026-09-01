@@ -6,17 +6,17 @@ from app.config import settings
 logger = logging.getLogger(__name__)
 
 # --- Termux/Android DNS Fix ---
-# Termux lacks /etc/resolv.conf, which dnspython needs for mongodb+srv:// SRV lookups.
-# Pre-configure the DNS resolver with Google Public DNS when the file is missing.
-if not os.path.exists("/etc/resolv.conf"):
-    try:
-        import dns.resolver
-        resolver = dns.resolver.Resolver(configure=False)
-        resolver.nameservers = ["8.8.8.8", "8.8.4.4", "1.1.1.1"]
-        dns.resolver.default_resolver = resolver
-        logger.info("Termux DNS fix applied: using Google/Cloudflare public DNS servers.")
-    except ImportError:
-        logger.warning("dnspython not installed, skipping Termux DNS fix.")
+# Termux lacks system DNS resolution for mongodb+srv:// SRV lookups & PyMongo shard hosts.
+# Pre-configure dnspython resolver with Google & Cloudflare Public DNS.
+try:
+    import dns.resolver
+    resolver = dns.resolver.Resolver(configure=False)
+    resolver.nameservers = ["8.8.8.8", "8.8.4.4", "1.1.1.1"]
+    dns.resolver.default_resolver = resolver
+    logger.info("Termux DNS fix applied: using Google/Cloudflare public DNS servers (8.8.8.8, 1.1.1.1).")
+except Exception as e:
+    logger.warning(f"Could not apply dnspython Termux DNS fix: {e}")
+
 
 class Database:
     client: AsyncIOMotorClient = None
