@@ -443,6 +443,32 @@ async def create_razorpay_order(payload: PaymentOrderCreateInput, current_user: 
         )
     return res
 
+async def send_whatsapp_once(order_id: str, phone: str, name: str, grand_total: float):
+    if not order_id or not phone:
+        return
+    should_send = await crud.mark_whatsapp_sent(order_id)
+    if should_send:
+        whatsapp_service.send_order_confirmation_message(
+            phone=phone,
+            name=name,
+            order_id=order_id,
+            grand_total=grand_total
+        )
+    else:
+        print(f"[WHATSAPP DUP PREVENTED] Confirmation message already sent for order: {order_id}")
+
+async def send_email_invoice_once(order: dict):
+    if not order:
+        return
+    order_id = str(order.get("order_id") or order.get("_id") or "")
+    if not order_id:
+        return
+    should_send = await crud.mark_email_sent(order_id)
+    if should_send:
+        email_service.send_order_invoice(order)
+    else:
+        print(f"[EMAIL DUP PREVENTED] Invoice email already sent for order: {order_id}")
+
 @app.post("/api/payment/verify")
 async def verify_razorpay_payment(payload: PaymentVerifyInput, background_tasks: BackgroundTasks, current_user: dict = Depends(get_current_user)):
     valid = razorpay_service.verify_payment_signature(
@@ -462,16 +488,17 @@ async def verify_razorpay_payment(payload: PaymentVerifyInput, background_tasks:
         order_status="Processing",
         razorpay_payment_id=payload.razorpay_payment_id
     )
-    if updated_order and updated_order.get("phone"):
+    if updated_order:
+        order_id = updated_order.get("order_id", payload.razorpay_order_id)
         background_tasks.add_task(
-            whatsapp_service.send_order_confirmation_message,
+            send_whatsapp_once,
+            order_id=order_id,
             phone=updated_order.get("phone", ""),
             name=updated_order.get("name", "Customer"),
-            order_id=updated_order.get("order_id", payload.razorpay_order_id),
             grand_total=float(updated_order.get("grand_total", 0.0))
         )
         background_tasks.add_task(
-            email_service.send_order_invoice,
+            send_email_invoice_once,
             order=updated_order
         )
 
@@ -549,18 +576,20 @@ async def verify_payment_link_endpoint(payload: PaymentLinkVerifyInput, backgrou
             order_status="Processing",
             razorpay_payment_id=payload.razorpay_payment_id
         )
-        if updated_order and updated_order.get("phone"):
+        if updated_order:
+            order_id = updated_order.get("order_id", payload.razorpay_payment_link_reference_id)
             background_tasks.add_task(
-                whatsapp_service.send_order_confirmation_message,
+                send_whatsapp_once,
+                order_id=order_id,
                 phone=updated_order.get("phone", ""),
                 name=updated_order.get("name", "Customer"),
-                order_id=updated_order.get("order_id", payload.razorpay_payment_link_reference_id),
                 grand_total=float(updated_order.get("grand_total", 0.0))
             )
             background_tasks.add_task(
-                email_service.send_order_invoice,
+                send_email_invoice_once,
                 order=updated_order
             )
+
 
 
     return {"success": True, "message": "Razorpay payment link signature verified successfully"}
@@ -615,18 +644,18 @@ async def razorpay_webhook(request: Request, background_tasks: BackgroundTasks):
             )
             if updated_order:
                 print(f"[RAZORPAY WEBHOOK] Order successfully marked as PAID for identifier: {candidate}")
-                if updated_order.get("phone"):
-                    background_tasks.add_task(
-                        whatsapp_service.send_order_confirmation_message,
-                        phone=updated_order.get("phone", ""),
-                        name=updated_order.get("name", "Customer"),
-                        order_id=updated_order.get("order_id", candidate),
-                        grand_total=float(updated_order.get("grand_total", 0.0))
-                    )
-                    background_tasks.add_task(
-                        email_service.send_order_invoice,
-                        order=updated_order
-                    )
+                order_id = updated_order.get("order_id", candidate)
+                background_tasks.add_task(
+                    send_whatsapp_once,
+                    order_id=order_id,
+                    phone=updated_order.get("phone", ""),
+                    name=updated_order.get("name", "Customer"),
+                    grand_total=float(updated_order.get("grand_total", 0.0))
+                )
+                background_tasks.add_task(
+                    send_email_invoice_once,
+                    order=updated_order
+                )
                 break
 
 
@@ -677,14 +706,18 @@ async def razorpay_webhook(request: Request, background_tasks: BackgroundTasks):
             )
             if updated_order:
                 print(f"[RAZORPAY WEBHOOK] Payment Link Order marked as PAID for ref: {reference_id}")
-                if updated_order.get("phone"):
-                    background_tasks.add_task(
-                        whatsapp_service.send_order_confirmation_message,
-                        phone=updated_order.get("phone", ""),
-                        name=updated_order.get("name", "Customer"),
-                        order_id=updated_order.get("order_id", reference_id),
-                        grand_total=float(updated_order.get("grand_total", 0.0))
-                    )
+                order_id = updated_order.get("order_id", reference_id)
+                background_tasks.add_task(
+                    send_whatsapp_once,
+                    order_id=order_id,
+                    phone=updated_order.get("phone", ""),
+                    name=updated_order.get("name", "Customer"),
+                    grand_total=float(updated_order.get("grand_total", 0.0))
+                )
+                background_tasks.add_task(
+                    send_email_invoice_once,
+                    order=updated_order
+                )
 
     elif event_type in ("payment_link.cancelled", "payment_link.expired"):
         link_entity = payload.get("payment_link", {}).get("entity", {})
@@ -708,21 +741,18 @@ async def create_new_order(payload: OrderCreateInput, background_tasks: Backgrou
 
         if is_cod or is_paid:
             background_tasks.add_task(
-                whatsapp_service.send_order_confirmation_message,
+                send_whatsapp_once,
+                order_id=payload.order_id,
                 phone=payload.phone,
                 name=payload.name,
-                order_id=payload.order_id,
                 grand_total=payload.grand_total
             )
-
-        # Send Email Invoice ONLY for COD or confirmed Paid orders!
-        # (For pending online payments, invoice email is sent upon payment verification success)
-        if is_cod or is_paid:
             background_tasks.add_task(
-                email_service.send_order_invoice,
+                send_email_invoice_once,
                 order=order
             )
     return order
+
 
 
 

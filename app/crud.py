@@ -602,3 +602,30 @@ async def get_admin_analytics() -> dict:
         "monthly_chart": chart_list
     }
 
+
+async def mark_whatsapp_sent(identifier: str) -> bool:
+    """Atomically sets whatsapp_sent=True. Returns True ONLY if it was NOT previously sent."""
+    db = get_database()
+    query = {"$or": [{"order_id": identifier}, {"receipt": identifier}, {"razorpay_order_id": identifier}]}
+    if ObjectId.is_valid(identifier):
+        query["$or"].append({"_id": ObjectId(identifier)})
+    res = await db.orders.update_one(
+        {**query, "whatsapp_sent": {"$ne": True}},
+        {"$set": {"whatsapp_sent": True}}
+    )
+    return res.modified_count > 0
+
+
+async def mark_email_sent(identifier: str) -> bool:
+    """Atomically sets email_sent=True. Returns True ONLY if it was NOT previously sent."""
+    db = get_database()
+    query = {"$or": [{"order_id": identifier}, {"receipt": identifier}, {"razorpay_order_id": identifier}]}
+    if ObjectId.is_valid(identifier):
+        query["$or"].append({"_id": ObjectId(identifier)})
+    res = await db.orders.update_one(
+        {**query, "email_sent": {"$ne": True}},
+        {"$set": {"email_sent": True}}
+    )
+    return res.modified_count > 0
+
+
