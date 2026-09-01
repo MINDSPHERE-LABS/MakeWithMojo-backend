@@ -255,7 +255,7 @@ class EmailService:
             return False
 
         order_id = order.get("order_id") or order.get("_id") or "N/A"
-        subject = f"Order Confirmation & Receipt #{order_id} - MakeWithMojo"
+        subject = f"Tax Invoice & Receipt for Order #{order_id}"
 
         try:
             msg = EmailMessage()
@@ -263,9 +263,11 @@ class EmailService:
             msg["From"] = f"{self.sender_name} <{self.sender_email}>"
             msg["To"] = recipient_email.strip()
             msg["Reply-To"] = self.sender_email
-            msg["Message-ID"] = f"<{order_id}.{int(time.time())}@makewithmojo.com>"
-            msg["X-Mailer"] = "MakeWithMojo Store Engine"
+            msg["Message-ID"] = f"<{order_id}.{int(time.time())}@gmail.com>"
+            msg["X-Mailer"] = "MakeWithMojo Dispatcher"
             msg["Auto-Submitted"] = "auto-generated"
+            msg["List-Unsubscribe"] = f"<mailto:{self.sender_email}?subject=Unsubscribe>"
+
 
             plain_body = self.generate_plain_text(order)
             html_body = self.generate_invoice_html(order)
