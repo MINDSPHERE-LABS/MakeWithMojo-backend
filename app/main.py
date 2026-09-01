@@ -470,6 +470,11 @@ async def verify_razorpay_payment(payload: PaymentVerifyInput, background_tasks:
             order_id=updated_order.get("order_id", payload.razorpay_order_id),
             grand_total=float(updated_order.get("grand_total", 0.0))
         )
+        background_tasks.add_task(
+            email_service.send_order_invoice,
+            order=updated_order
+        )
+
 
     return {"success": True, "message": "Razorpay payment verified successfully", "order": updated_order}
 
@@ -552,6 +557,11 @@ async def verify_payment_link_endpoint(payload: PaymentLinkVerifyInput, backgrou
                 order_id=updated_order.get("order_id", payload.razorpay_payment_link_reference_id),
                 grand_total=float(updated_order.get("grand_total", 0.0))
             )
+            background_tasks.add_task(
+                email_service.send_order_invoice,
+                order=updated_order
+            )
+
 
     return {"success": True, "message": "Razorpay payment link signature verified successfully"}
 
@@ -613,7 +623,12 @@ async def razorpay_webhook(request: Request, background_tasks: BackgroundTasks):
                         order_id=updated_order.get("order_id", candidate),
                         grand_total=float(updated_order.get("grand_total", 0.0))
                     )
+                    background_tasks.add_task(
+                        email_service.send_order_invoice,
+                        order=updated_order
+                    )
                 break
+
 
         if not updated_order:
             print(f"[RAZORPAY WEBHOOK] Warning: Order not found for identifiers: {candidates}")
@@ -687,19 +702,28 @@ async def razorpay_webhook(request: Request, background_tasks: BackgroundTasks):
 @app.post("/api/orders")
 async def create_new_order(payload: OrderCreateInput, background_tasks: BackgroundTasks, current_user: dict = Depends(get_current_user)):
     order = await crud.create_order(current_user["_id"], payload)
-    if order and payload.payment_status in ("paid", "pending"):
-        background_tasks.add_task(
-            whatsapp_service.send_order_confirmation_message,
-            phone=payload.phone,
-            name=payload.name,
-            order_id=payload.order_id,
-            grand_total=payload.grand_total
-        )
-        background_tasks.add_task(
-            email_service.send_order_invoice,
-            order=order
-        )
+    if order:
+        is_cod = payload.payment_method.lower() in ("cod", "cash on delivery", "cash_on_delivery")
+        is_paid = payload.payment_status.lower() == "paid"
+
+        if is_cod or is_paid:
+            background_tasks.add_task(
+                whatsapp_service.send_order_confirmation_message,
+                phone=payload.phone,
+                name=payload.name,
+                order_id=payload.order_id,
+                grand_total=payload.grand_total
+            )
+
+        # Send Email Invoice ONLY for COD or confirmed Paid orders!
+        # (For pending online payments, invoice email is sent upon payment verification success)
+        if is_cod or is_paid:
+            background_tasks.add_task(
+                email_service.send_order_invoice,
+                order=order
+            )
     return order
+
 
 
 @app.get("/api/orders")
